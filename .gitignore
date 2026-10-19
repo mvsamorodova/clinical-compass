@@ -9,6 +9,7 @@ dist/
 .dev.vars
 .dev.vars.*
 *.tsbuildinfo
+next-env.d.ts
 *.log
 *.pem
 *.key
