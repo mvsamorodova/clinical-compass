@@ -4,17 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookHeart, Check, CheckCheck, ChevronLeft, Compass, Heart, LoaderCircle, LockKeyhole, MessageCircle, Plus, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { EMOTIONS, MOODS, safetyNotice } from '../../lib/patient-chat';
 import { useLocalModel } from '../../lib/use-local-model';
+import { useSession } from '../../lib/session';
 
 type Entry = { id: string; mood: number; emotions: string[]; note: string; sharedWithDoctor: boolean; createdAt: number };
 type Turn = { id: number; requestId: string; message: string; reply: string; kind: string; createdAt: number };
 type Mode = 'diary' | 'talk';
 type Step = 'mood' | 'emotions' | 'note';
-async function api(path: string, method = 'GET', body?: unknown): Promise<any> {
-  const response = await fetch('/api/' + path, { method, credentials: 'same-origin', signal: AbortSignal.timeout(20000), headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
-  const data: any = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Не удалось выполнить действие. Попробуйте ещё раз.');
-  return data;
-}
 const time = (ts: number) => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 const when = (ts: number) => new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 function AssistantBubble({ children, talk = false, safety = false }: { children: React.ReactNode; talk?: boolean; safety?: boolean }) {
@@ -24,6 +19,7 @@ function UserBubble({ children, date }: { children: React.ReactNode; date?: numb
   return <div className="chat-line patient"><div><span className="chat-sender">Вы{date ? ` · ${time(date)}` : ''}</span><div className="chat-bubble">{children}</div></div></div>;
 }
 export default function PatientChat({ name, initialMode = 'diary' }: { name: string; initialMode?: Mode }) {
+  const { api } = useSession();
   const model = useLocalModel();
   const [liveReply, setLiveReply] = useState('');
   const [sendingMessage, setSendingMessage] = useState('');
@@ -168,6 +164,7 @@ export default function PatientChat({ name, initialMode = 'diary' }: { name: str
 }
 
 export function DoctorJournal({ patientId }: { patientId: string }) {
+  const { api } = useSession();
   const [entries, setEntries] = useState<Entry[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const request = useRef(0);
   async function load() { const id = ++request.current; setLoading(true); setError(''); try { const result = await api(`patients/${patientId}/journal`); if (id === request.current) setEntries(result.entries); } catch (e) { if (id === request.current) setError((e as Error).message); } finally { if (id === request.current) setLoading(false); } }
