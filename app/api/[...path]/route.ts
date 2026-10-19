@@ -7,7 +7,7 @@ const db=()=>{if(!env.DB)throw new Error('Database unavailable');return env.DB;}
 const row=(sql:string,...args:any[])=>db().prepare(sql).bind(...args).first<any>();
 const run=(sql:string,...args:any[])=>db().prepare(sql).bind(...args).run();
 const all=async(sql:string,...args:any[])=>(await db().prepare(sql).bind(...args).all<any>()).results;
-class ApiError extends Error {constructor(public status:number,message:string){super(message);}}
+class ApiError extends Error {constructor(public status:number,message:string,public code?:string){super(message);}}
 function fail(status:number,message:string):never {throw new ApiError(status,message);}
 function requestId(value:unknown){if(typeof value!=='string'||!/^[a-f0-9-]{36}$/.test(value))fail(400,'Некорректный идентификатор записи');return value;}
 function entryView(r:any){return {id:r.id,mood:r.mood,emotions:JSON.parse(r.emotions),note:r.note,sharedWithDoctor:!!r.shared_doctor_id,createdAt:r.created_at};}
@@ -16,7 +16,7 @@ function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email
 function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule};}
 function respond(data:any,status=200,cookie?:string){return Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...(cookie?{'Set-Cookie':cookie}:{})}});}
 function sessionToken(req:Request){return /(?:^|;\s*)compass_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.get('cookie')||'')?.[1];}
-async function current(req:Request){const token=sessionToken(req);if(!token)fail(401,'Войдите в аккаунт');const u=await row('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',await digest(token),Date.now());if(!u)fail(401,'Сессия завершена. Войдите снова');return u;}
+async function current(req:Request){const token=sessionToken(req);if(!token)fail(401,'Войдите в аккаунт');const u=await row('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',await digest(token),Date.now());if(!u)fail(401,'Сессия завершена. Войдите снова');const expected=req.headers.get('x-compass-user');if(expected && expected!==u.id)throw new ApiError(409,'Аккаунт изменился в другой вкладке. Обновите кабинет. Для приглашения пациента войдите как врач.','SESSION_CHANGED');return u;}
 async function signIn(req:Request,u:any){const token=randomToken();await run('INSERT INTO sessions(token,user_id,expires) VALUES(?,?,?)',await digest(token),u.id,Date.now()+7*DAY);return respond({user:publicUser(u)},200,`compass_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${new URL(req.url).protocol==='https:'?'; Secure':''}`);}
 async function body(req:Request){const text=await req.text();if(text.length>30000)fail(413,'Слишком большой запрос');try{return JSON.parse(text);}catch{fail(400,'Некорректный запрос');}}
 async function throttle(req:Request,kind:string,key:string,limit=10){const id=await digest(kind+':'+(req.headers.get('cf-connecting-ip')||'local')+':'+key);const now=Date.now();await run('INSERT INTO login_attempts(key,count,reset_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN reset_at<? THEN 1 ELSE count+1 END, reset_at=CASE WHEN reset_at<? THEN excluded.reset_at ELSE reset_at END',id,now+15*60000,now,now);const r=await row('SELECT count FROM login_attempts WHERE key=?',id);if(r.count>limit)fail(429,'Слишком много попыток. Попробуйте через 15 минут');}
@@ -25,7 +25,7 @@ async function handle(req:Request){
  if(method!=='GET'){const origin=req.headers.get('origin');if(origin && origin!==url.origin)fail(403,'Запрос с другого сайта запрещён');if(req.headers.get('sec-fetch-site')==='cross-site')fail(403,'Запрос с другого сайта запрещён');}
  if(path[0]==='auth' && method==='POST'){
   const b=await body(req);
-  if(path[1]==='logout'){const token=sessionToken(req);if(token)await run('DELETE FROM sessions WHERE token=?',await digest(token));return respond({ok:true},200,'compass_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');}
+  if(path[1]==='logout'){if(req.headers.has('x-compass-user'))await current(req);const token=sessionToken(req);if(token)await run('DELETE FROM sessions WHERE token=?',await digest(token));return respond({ok:true},200,'compass_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');}
   const email=clean(b.email,254).toLowerCase(),password=typeof b.password==='string'?b.password:'';
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail(400,'Укажите корректную электронную почту');
   if(password.length<8 || password.length>128)fail(400,'Пароль должен содержать от 8 до 128 символов');
@@ -108,7 +108,7 @@ async function handle(req:Request){
   if(!u.demo_group)fail(403,'Доступно только в демо');const target=await row('SELECT * FROM users WHERE demo_group=? AND role=? ORDER BY name LIMIT 1',u.demo_group,u.role==='doctor'?'patient':'doctor');if(!target)fail(404,'Демоаккаунт не найден');const token=sessionToken(req);if(token)await run('DELETE FROM sessions WHERE token=?',await digest(token));return signIn(req,target);
  }
  if(path[0]==='invites' && !path[1] && method==='POST'){
-  if(u.role!=='doctor')fail(403,'Только для врача');await throttle(req,'invite',u.id,40);const token=randomToken(),expires=Date.now()+7*DAY;await run('INSERT INTO invitations(token,doctor_id,expires,created_at) VALUES(?,?,?,?)',await digest(token),u.id,expires,Date.now());return respond({token,expires});
+  if(u.role!=='doctor')fail(403,'Это действие доступно в аккаунте врача. Войдите как врач и повторите попытку.');await throttle(req,'invite',u.id,40);const token=randomToken(),expires=Date.now()+7*DAY;await run('INSERT INTO invitations(token,doctor_id,expires,created_at) VALUES(?,?,?,?)',await digest(token),u.id,expires,Date.now());return respond({token,expires});
  }
  if(path[0]==='invites' && path[1] && method==='POST'){
   if(u.role!=='patient')fail(403,'Присоединиться к врачу можно из аккаунта пациента');if(await row('SELECT patient_id FROM patient_records WHERE patient_id=?',u.id))fail(409,'Вы уже прикреплены к врачу');const token=await digest(path[1]);const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',token,Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');
@@ -117,7 +117,7 @@ async function handle(req:Request){
   return respond({ok:true});
  }
  if(path[0]==='patients'){
-  if(u.role!=='doctor')fail(403,'Только для врача');
+  if(u.role!=='doctor')fail(403,'Это действие доступно в аккаунте врача. Войдите как врач и повторите попытку.');
   if(!path[1] && method==='GET')return respond({patients:await all('SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,r.status,r.summary,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.doctor_id=? ORDER BY r.updated_at DESC',u.id)});
   const p=await row('SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,r.status,r.summary,r.recommendations,r.private_notes AS privateNotes,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.patient_id=? AND r.doctor_id=?',path[1]||'',u.id);if(!p)fail(404,'Пациент не найден');
   if(path[2]==='journal'&&method==='GET'){const entries=await all('SELECT * FROM mood_entries WHERE patient_id=? AND shared_doctor_id=? ORDER BY created_at DESC,id DESC LIMIT 100',p.id,u.id);return respond({entries:entries.map(entryView)});}
@@ -132,5 +132,5 @@ async function handle(req:Request){
  }
  fail(404,'Страница не найдена');
 }
-async function route(req:Request){try{return await handle(req);}catch(e){if(e instanceof ApiError)return respond({error:e.message},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
+async function route(req:Request){try{return await handle(req);}catch(e){if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
 export {route as GET,route as POST,route as PATCH,route as DELETE};
