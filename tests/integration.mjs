@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 const base=process.argv[2]||'http://127.0.0.1:8787';
 const stamp=crypto.randomUUID(),password='Test-'+crypto.randomUUID();let checks=0;
-async function request(path,{method='GET',body,cookie,expect=200}={}){const res=await fetch(base+'/api/'+path,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),Origin:base},body:body?JSON.stringify(body):undefined});const json=await res.json();assert.equal(res.status,expect,`${method} ${path}: ${JSON.stringify(json)}`);assert.equal(res.headers.get('cache-control'),'no-store');checks++;return {...json,cookie:res.headers.get('set-cookie')?.split(';')[0]};}
+async function request(path,{method='GET',body,cookie,expectedUserId,expect=200}={}){const res=await fetch(base+'/api/'+path,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),...(expectedUserId?{'X-Compass-User':expectedUserId}:{}),Origin:base},body:body?JSON.stringify(body):undefined});const json=await res.json();assert.equal(res.status,expect,`${method} ${path}: ${JSON.stringify(json)}`);assert.equal(res.headers.get('cache-control'),'no-store');checks++;return {...json,cookie:res.headers.get('set-cookie')?.split(';')[0]};}
 const register=(role,suffix)=>request('auth/register',{method:'POST',body:{name:'Тест '+suffix,email:`${stamp}-${suffix}@example.test`,password,role}});
 await request('patients',{expect:401});
 const d=await register('doctor','doctor'),other=await register('doctor','other'),p=await register('patient','patient'),p2=await register('patient','patient2');
@@ -38,6 +38,21 @@ const race=await request('invites',{method:'POST',body:{},cookie:d.cookie});
 const responses=await Promise.all([p,p2].map(u=>fetch(base+'/api/invites/'+race.token,{method:'POST',headers:{Cookie:u.cookie,Origin:base,'Content-Type':'application/json'},body:'{}'})));
 assert.equal(responses.filter(r=>r.status===200).length,1);assert.ok(responses.every(r=>[200,404,409].includes(r.status)));checks++;
 assert.equal((await request('patients',{cookie:d.cookie})).patients.length,1);
+// A stale doctor tab must not act using a patient or another doctor's cookie.
+const changed = await request('invites',{method:'POST',body:{},cookie:p.cookie,expectedUserId:d.user.id,expect:409});
+assert.equal(changed.code,'SESSION_CHANGED');assert.match(changed.error,/Аккаунт изменился/);
+assert.equal((await request('me',{cookie:p.cookie})).user.role,'patient');
+await request('patients',{cookie:p.cookie,expectedUserId:d.user.id,expect:409});
+await request('journal',{method:'POST',body:{},cookie:p.cookie,expectedUserId:d.user.id,expect:409});
+await request('invites',{method:'POST',body:{},cookie:other.cookie,expectedUserId:d.user.id,expect:409});
+await request('me',{method:'PATCH',body:{name:'Must not overwrite another account'},cookie:other.cookie,expectedUserId:d.user.id,expect:409});
+assert.equal((await request('me',{cookie:other.cookie})).user.name,'Тест other');
+await request('auth/logout',{method:'POST',body:{},cookie:other.cookie,expectedUserId:d.user.id,expect:409});
+await request('me',{cookie:other.cookie});
+const denied = await request('invites',{method:'POST',body:{},cookie:p.cookie,expectedUserId:p.user.id,expect:403});
+assert.match(denied.error,/Войдите как врач/);
+const recovered = await request('invites',{method:'POST',body:{},cookie:d.cookie,expectedUserId:d.user.id});
+assert.equal((await request('invites/'+recovered.token)).doctor.id,d.user.id);
 await request('auth/logout',{method:'POST',body:{},cookie:d.cookie});await request('me',{cookie:d.cookie,expect:401});
 const demo=await request('demo',{method:'POST',body:{}});assert.equal(demo.user.isDemo,true);assert.equal((await request('patients',{cookie:demo.cookie})).patients.length,6);
 const switched=await request('demo/switch',{method:'POST',body:{},cookie:demo.cookie});assert.equal(switched.user.role,'patient');assert.ok((await request('my-care',{cookie:switched.cookie})).doctor);await request('me',{cookie:demo.cookie,expect:401});
