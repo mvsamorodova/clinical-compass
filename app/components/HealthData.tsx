@@ -1,4 +1,5 @@
 'use client';
+import {PatientSection} from './PatientSection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Check, FileUp, LoaderCircle, LockKeyhole, Moon, RefreshCw, ShieldCheck } from 'lucide-react';
 import healthWorkerUrl from '../../lib/health-import.worker.ts?worker&url';
@@ -32,7 +33,7 @@ function HealthHistory({entries}:{entries:Entry[]}){
 export function DoctorHealth({patientId}:{patientId:string}){
  const {api}=useSession(),[data,setData]=useState<Data|null>(null),[error,setError]=useState('');
  const refresh=useCallback(async()=>{setError('');try{setData(await api('patients/'+patientId+'/health'));}catch(e){setError((e as Error).message);}},[api,patientId]);useEffect(()=>{void refresh();},[refresh]);
- return <section className="panel health-panel"><div className="tests-heading"><div><span className="eyebrow">ПОВСЕДНЕВНОЕ САМОЧУВСТВИЕ</span><h2>Сон и активность</h2><p>Данные, которыми пациент поделился с вами</p></div><button className="secondary" onClick={refresh}><RefreshCw size={16}/>Обновить</button></div>{error?<p className="error-banner" role="alert">{error}</p>:!data?<p>Загрузка…</p>:!data.shared?<div className="health-private"><LockKeyhole size={22}/><p>Пациент пока не открыл доступ к данным сна и активности.</p></div>:<HealthHistory entries={data.entries}/>}</section>;
+ return <PatientSection className="health-panel" title="Сон и активность" icon={<Moon size={20}/>} description="Данные, которыми пациент поделился с вами" actions={<button className="secondary" onClick={refresh}><RefreshCw size={16}/>Обновить</button>}>{error?<p className="error-banner" role="alert">{error}</p>:!data?<p>Загрузка…</p>:!data.shared?<div className="health-private"><LockKeyhole size={22}/><p>Пациент пока не открыл доступ к данным сна и активности.</p></div>:<HealthHistory entries={data.entries}/>}</PatientSection>;
 }
 export function PatientHealth(){
  const {api}=useSession(),[data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[reading,setReading]=useState(false),[saving,setSaving]=useState(false),[preview,setPreview]=useState<HealthPreview|null>(null),[choices,setChoices]=useState<Record<string,string>>({}),[from,setFrom]=useState(''),[to,setTo]=useState(''),[progress,setProgress]=useState('');
