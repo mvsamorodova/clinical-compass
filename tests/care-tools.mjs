@@ -90,6 +90,7 @@ const a=(await req('patients/'+p.user.id+'/tests',d,'POST',{testKey:'phq9'})).as
 const answers=[0,0,0,0,0,0,0,0,1];const result={id:crypto.randomUUID(),version:RISK_RULES.phq9.version,dueAt:a.nextDueAt,answers};
 const saved=await Promise.all([1,2].map(()=>req('tests/'+a.id+'/results',p,'POST',result)));
 assert.equal(saved[0].result.id,saved[1].result.id);assert.ok(!JSON.stringify(saved[0]).includes('scores'));
+assert.equal((await req('alerts?patientId='+p.user.id,d)).alerts.length,1);await req('alerts?patientId='+p.user.id,other,'GET',undefined,404);
 let alerts=(await req('alerts',d)).alerts;assert.equal(alerts.length,1);assert.equal(alerts[0].reasons[0].kind,'safety');
 assert.equal((await req('alerts',other)).alerts.length,0);assert.equal((await req('safety-plan',p)).signalCount,1);
 await req('alerts/'+alerts[0].id,other,'PATCH',{},404);await req('alerts/'+alerts[0].id,p,'PATCH',{},403);
@@ -102,7 +103,7 @@ const sameId=crypto.randomUUID();
 const contested=await Promise.all([Array(9).fill(0),answers].map(values=>fetch(base+'/api/tests/'+concurrent.id+'/results',{method:'POST',headers:{Origin:base,Cookie:stranger.cookie,'Content-Type':'application/json'},body:JSON.stringify({id:sameId,version:RISK_RULES.phq9.version,dueAt:concurrent.nextDueAt,answers:values})})));
 assert.deepEqual(contested.map(r=>r.status).sort(),[200,409]);
 const actual=(await req('patients/'+stranger.user.id+'/tests/results/'+sameId,d)).response;
-assert.equal((await req('alerts',d)).alerts.filter(a=>a.patientId===stranger.user.id).length,actual[8]>0?1:0);
+assert.equal((await req('alerts',d)).alerts.filter(a=>a.patientId===stranger.user.id).length,actual[8]>0?1:0);assert.ok((await req('alerts?patientId='+p.user.id,d)).alerts.every(a=>a.patientId===p.user.id));assert.ok((await req('alerts?patientId='+stranger.user.id,d)).alerts.every(a=>a.patientId===stranger.user.id));
 await req('patients/'+p.user.id,d,'DELETE');await req('patients/'+p.user.id+'/safety-plan',d,'GET',undefined,404);assert.equal((await req('alerts',d)).alerts.filter(a=>a.patientId===p.user.id).length,0);
 await link(other,p);assert.equal((await req('alerts',other)).alerts.length,0);assert.equal((await req('safety-plan',p)).plan.data.reason,plan.reason);
 console.log(`PASS: clinical boundary checks + ${checks} API checks: immutable plan, concurrent save, permissions, reflection privacy, readiness-based state machine and private answers, atomic alerts and acknowledgement.`);

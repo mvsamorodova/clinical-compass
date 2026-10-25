@@ -1,3 +1,5 @@
+import {avatarApi,avatarImage} from '../../../lib/avatar-api';
+import {avatarUrl} from '../../../lib/avatars';
 import {modelAssetsApi} from '../../../lib/model-assets-api';
 import {voiceApi} from '../../../lib/voice-api';
 import {careToolsApi} from '../../../lib/care-tools-api';
@@ -20,8 +22,8 @@ function fail(status:number,message:string):never {throw new ApiError(status,mes
 function requestId(value:unknown){if(typeof value!=='string'||!/^[a-f0-9-]{36}$/.test(value))fail(400,'Некорректный идентификатор записи');return value;}
 function entryView(r:any){return {id:r.id,mood:r.mood,emotions:JSON.parse(r.emotions),note:r.note,reflections:JSON.parse(r.reflections_json||'[]'),sharedWithDoctor:!!r.shared_doctor_id,createdAt:r.created_at};}
 function clean(value:any,max=5000){if(typeof value!=='string')return '';return value.trim().slice(0,max);}
-function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email,birthDate:u.birth_date,phone:u.phone,specialty:u.specialty,clinic:u.clinic,bio:u.bio,contactEmail:u.contact_email,schedule:u.schedule,isDemo:!!u.demo_group};}
-function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule};}
+function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email,birthDate:u.birth_date,phone:u.phone,specialty:u.specialty,clinic:u.clinic,bio:u.bio,contactEmail:u.contact_email,schedule:u.schedule,isDemo:!!u.demo_group,avatarUrl:avatarUrl(u)};}
+function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule,avatarUrl:avatarUrl(u)};}
 function respond(data:any,status=200,cookie?:string){return Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...(cookie?{'Set-Cookie':cookie}:{})}});}
 function sessionToken(req:Request){return /(?:^|;\s*)compass_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.get('cookie')||'')?.[1];}
 async function current(req:Request){const token=sessionToken(req);if(!token)fail(401,'Войдите в аккаунт');const u=await row('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',await digest(token),Date.now());if(!u)fail(401,'Сессия завершена. Войдите снова');const expected=req.headers.get('x-compass-user');if(expected && expected!==u.id)throw new ApiError(409,'Аккаунт изменился в другой вкладке. Обновите кабинет. Для приглашения пациента войдите как врач.','SESSION_CHANGED');return u;}
@@ -56,9 +58,10 @@ async function handle(req:Request){
   await db().batch(statements);return signIn(req,await row('SELECT * FROM users WHERE id=?',doctorId));
  }
  if(path[0]==='invites' && path[1] && method==='GET'){
-  const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);return respond({doctor:doctorProfile(d),expires:inv.expires});
+  const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);if(path.length===3&&path[2]==='avatar')return avatarImage(d,env.BUCKET);if(path.length!==2)fail(404,'Страница не найдена');const profile=doctorProfile(d);if(profile.avatarUrl)profile.avatarUrl='/api/invites/'+path[1]+'/avatar?v='+encodeURIComponent(d.avatar_key.split('/').at(-1));return respond({doctor:profile,expires:inv.expires});
  }
  const u=await current(req);
+ const avatarResponse=await avatarApi(req,path,u,db(),env.BUCKET);if(avatarResponse)return avatarResponse;
  const voiceResponse=await voiceApi(req,path,u,db(),env.BUCKET);if(voiceResponse)return voiceResponse;
  const careResponse=await careToolsApi(req,path,u,db());if(careResponse)return careResponse;
  const syncResponse=await shortcutManagement(req,path,u,db());if(syncResponse)return syncResponse;
@@ -146,13 +149,13 @@ async function handle(req:Request){
  if(path[0]==='my-care' && method==='GET'){
   if(u.role!=='patient')fail(403,'Только для пациента');
   // Explicit projection: private_notes must never enter a patient response.
-  const r=await row('SELECT doctor_id,summary,recommendations,updated_at AS updatedAt FROM patient_records WHERE patient_id=?',u.id);if(!r)return respond({record:null,doctor:null});const d=await row('SELECT id,name,specialty,clinic,bio,phone,contact_email,schedule FROM users WHERE id=?',r.doctor_id);return respond({record:{summary:r.summary,recommendations:r.recommendations,updatedAt:r.updatedAt},doctor:doctorProfile(d)});
+  const r=await row('SELECT doctor_id,summary,recommendations,updated_at AS updatedAt FROM patient_records WHERE patient_id=?',u.id);if(!r)return respond({record:null,doctor:null});const d=await row('SELECT id,name,specialty,clinic,bio,phone,contact_email,schedule,avatar_key FROM users WHERE id=?',r.doctor_id);return respond({record:{summary:r.summary,recommendations:r.recommendations,updatedAt:r.updatedAt},doctor:doctorProfile(d)});
  }
  fail(404,'Страница не найдена');
 }
 async function route(req:Request){try{return await handle(req);}catch(e){
  // Consume rejected voice uploads as a stream, including auth/CSRF failures,
  // so the Worker can finish this request without breaking the next connection.
- if(/^\/api\/(voice|model-assets)\//.test(new URL(req.url).pathname)&&req.body&&!req.bodyUsed){try{const reader=req.body.getReader();while(!(await reader.read()).done){}reader.releaseLock();}catch{}}
+ if(/^\/api\/(voice|model-assets|me\/avatar|avatars)(\/|$)/.test(new URL(req.url).pathname)&&req.body&&!req.bodyUsed){try{const reader=req.body.getReader();while(!(await reader.read()).done){}reader.releaseLock();}catch{}}
 if(e instanceof HealthError)return respond({error:e.message},e.status);if(e instanceof AssessmentError)return respond({error:e.message},e.status);if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
 export {route as GET,route as POST,route as PUT,route as PATCH,route as DELETE};
