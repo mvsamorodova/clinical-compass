@@ -3,10 +3,11 @@ import type {InferenceSession} from 'onnxruntime-common';
 import {gigaamFeatures} from './gigaam-features';
 import {EMOTION_LABELS,type EmotionScores} from './voice-model';
 import manifest from './gigaam-model-manifest.json';
+import {EMOTION_CACHE,emotionCached} from './model-cache';
 ort.env.wasm.numThreads=1;ort.env.wasm.proxy=false;ort.env.wasm.wasmPaths=new URL('/speech-runtime/',self.location.origin).href;
 let model:InferenceSession|null=null,busy=false;
 async function weights(){
- let cache:Cache|null=null;try{cache=await caches.open('compass-gigaam-emo-8fad2a2c');}catch{/* Caching is optional. */}
+ let cache:Cache|null=null;try{cache=await caches.open(EMOTION_CACHE);}catch{/* Caching is optional. */}
  const bytes=new Uint8Array(manifest.bytes);let offset=0;
  for(const chunk of manifest.chunks){
   const url=new URL(chunk.url,self.location.origin).href;
@@ -30,7 +31,7 @@ self.onmessage=async(e:MessageEvent)=>{
    const bytes=await weights();self.postMessage({type:'progress',progress:100,label:'Подготавливаем модель на устройстве'});
    model=await ort.InferenceSession.create(bytes,{executionProviders:['wasm'],graphOptimizationLevel:'all'});
    if(model.inputNames.join()!=='features,feature_lengths'||model.outputNames.join()!=='probs')throw Error('Неожиданная структура модели');
-   self.postMessage({type:'ready'});
+   self.postMessage({type:'ready',cached:await emotionCached()});
   }else if(e.data.type==='analyze'){
    if(!model)throw Error('Сначала загрузите GigaAM-Emo');const pcm=e.data.audio;
    if(!(pcm instanceof Float32Array)||pcm.length<3200||pcm.length>65*16000||pcm.some(v=>!Number.isFinite(v)||Math.abs(v)>1))throw Error('Неподдерживаемая запись');

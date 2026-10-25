@@ -78,6 +78,20 @@
       "when": 1792943325094,
       "tag": "0010_blue_betty_brant",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792948737433,
+      "tag": "0011_windy_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792949185389,
+      "tag": "0012_normalize_observation_status",
+      "breakpoints": true
     }
   ]
 }

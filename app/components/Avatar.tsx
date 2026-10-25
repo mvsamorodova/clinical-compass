@@ -23,7 +23,7 @@ async function preparePhoto(file:File){
   return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Не удалось подготовить фото')),'image/jpeg',.88));
  }finally{URL.revokeObjectURL(url);}
 }
-export function DoctorAvatarEditor({user,disabled,onChange,onBusy}:{user:User;disabled:boolean;onChange:(url:string|null)=>void;onBusy:(busy:boolean)=>void}){
+export function ProfileAvatarEditor({user,disabled,onChange,onBusy}:{user:User;disabled:boolean;onChange:(url:string|null)=>void;onBusy:(busy:boolean)=>void}){
  const {api}=useSession(),input=useRef<HTMLInputElement>(null),alive=useRef(true);
  const [busy,setBusy]=useState(false),[preview,setPreview]=useState<string|null>(null),[error,setError]=useState(''),[status,setStatus]=useState('');
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
@@ -40,7 +40,7 @@ export function DoctorAvatarEditor({user,disabled,onChange,onBusy}:{user:User;di
  }
  return <div className="profile-photo-editor">
   <Avatar name={user.name} src={preview||user.avatarUrl} large/>
-  <input ref={input} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Фото профиля врача" disabled={busy||disabled} onChange={e=>{const file=e.target.files?.[0];if(file)void change(file);}}/>
+  <input ref={input} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label={user.role==='doctor'?'Фото профиля врача':'Фото профиля пациента'} disabled={busy||disabled} onChange={e=>{const file=e.target.files?.[0];if(file)void change(file);}}/>
   <button type="button" className="secondary" disabled={busy||disabled} onClick={()=>input.current?.click()}>{busy?<LoaderCircle size={17} className="spin"/>:<Camera size={17}/>} {user.avatarUrl?'Заменить фото':'Загрузить фото'}</button>
   {user.avatarUrl&&<button type="button" className="text-button" disabled={busy||disabled} onClick={()=>void change()}><Trash2 size={15}/>Удалить фото</button>}
   <p className="field-hint">JPG, PNG или WebP до 10 МБ. Фото обрезается по центру и сохраняется сразу.</p>

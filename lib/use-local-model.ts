@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import {keepModelStorage} from './model-cache';
 import modelWorkerUrl from './llm.worker.ts?worker&url';
 
 type State = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error';
 type Job = { resolve(value: string): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>; onDelta?: (text: string) => void };
 export function useLocalModel() {
   const [state, setState] = useState<State>('idle');
+  const [cached,setCached]=useState<boolean|null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const worker = useRef<Worker | null>(null);
@@ -21,7 +23,9 @@ export function useLocalModel() {
   useEffect(() => {
     active.current = true;
     if (!('gpu' in navigator)) setState('unsupported');
-    return () => { active.current = false; dispose(); };
+    let probe:Worker|null=null;
+    try{probe=new Worker(modelWorkerUrl,{type:'module'});probe.onmessage=e=>{if(e.data.type==='result'&&active.current)setCached(e.data.data==='cached');probe?.terminate();};probe.onerror=()=>probe?.terminate();probe.postMessage({id:'cache-probe',type:'check'});}catch{setCached(false);}
+    return () => { active.current = false; probe?.terminate(); dispose(); };
   }, []);
 
   function call(type: string, payload: unknown, timeout: number, onDelta?: (text: string) => void) {
@@ -38,12 +42,13 @@ export function useLocalModel() {
   async function start() {
     if (state === 'loading' || state === 'ready') return;
     const attempt = ++loadAttempt.current;
-    dispose(); setState('loading'); setProgress(0); setError('');
+    dispose(); void keepModelStorage(); setState('loading'); setProgress(0); setError('');
     try {
       const w = new Worker(modelWorkerUrl, { type: 'module' });
       worker.current = w;
       w.onmessage = event => {
         const { id, type, data } = event.data;
+        if(type==='cache-status'){if(active.current)setCached(data);return;}
         const job = jobs.current.get(id); if (!job) return;
         if (type === 'progress') { if (active.current) setProgress(data); return; }
         if (type === 'delta') { job.onDelta?.(data); return; }
@@ -69,5 +74,5 @@ export function useLocalModel() {
     }
   }
   function stop() { loadAttempt.current++; dispose(); setState('idle'); setError(''); }
-  return { state, progress, error, start, stop, generate };
+  return { state, cached, progress, error, start, stop, generate };
 }

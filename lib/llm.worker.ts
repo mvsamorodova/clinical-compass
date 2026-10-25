@@ -1,4 +1,4 @@
-import { MLCEngine, type ChatCompletionMessageParam } from '@mlc-ai/web-llm';
+import { MLCEngine, hasModelInCache, prebuiltAppConfig, type ChatCompletionMessageParam } from '@mlc-ai/web-llm';
 
 let engine: MLCEngine | null = null;
 const systemPrompt = `Ты — внимательный ИИ-собеседник в дневнике настроения. Отвечай только по-русски, естественно, в 2–4 предложениях. Отвечай на конкретное сообщение, учитывай контекст; можно задать один вопрос. Не выдумывай факты о человеке. Ты не врач: не ставь диагнозы, не назначай лекарства и не меняй лечение. Медицинские вопросы направляй врачу. При угрозе жизни предложи местную экстренную службу и человека рядом. Не поощряй опасные действия. Ты не можешь связаться с врачом или сохранить дневник. /no_think`;
@@ -7,13 +7,15 @@ self.onmessage = async (event: MessageEvent) => {
   const { id, type, payload } = event.data;
   const send = (type: string, data: unknown) => self.postMessage({ id, type, data });
   try {
-    if (type === 'load') {
+    if (type === 'load' || type === 'check') {
       const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ features: Set<string> } | null> } }).gpu;
       const adapter = await gpu?.requestAdapter();
       if (!adapter) throw new Error('GPU_UNAVAILABLE');
       const model = adapter.features.has('shader-f16') ? 'Qwen3-1.7B-q4f16_1-MLC' : 'Qwen3-1.7B-q4f32_1-MLC';
-      engine = new MLCEngine({ initProgressCallback: report => send('progress', Math.min(99, Math.round(report.progress * 100))), logLevel: 'ERROR' });
+      if(type==='check'){send('result',await hasModelInCache(model,prebuiltAppConfig).catch(()=>false)?'cached':'missing');return;}
+      engine = new MLCEngine({ appConfig:{...prebuiltAppConfig,cacheBackend:'cache'}, initProgressCallback: report => send('progress', Math.min(99, Math.round(report.progress * 100))), logLevel: 'ERROR' });
       await engine.reload(model, { context_window_size: 4096 });
+      send('cache-status',await hasModelInCache(model,prebuiltAppConfig).catch(()=>false));
       send('result', model);
     } else if (type === 'generate') {
       if (!engine) throw new Error('MODEL_NOT_READY');

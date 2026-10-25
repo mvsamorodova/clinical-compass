@@ -16,7 +16,7 @@ async function imageBytes(req:Request){
 export async function avatarApi(req:Request,path:string[],u:any,db:D1Database,bucket:R2Bucket):Promise<Response|null>{
  const own=path[0]==='me'&&path[1]==='avatar';if(!own&&path[0]!=='avatars')return null;
  if(own){
-  if(path.length!==2)fail(404,'Страница не найдена');if(u.role!=='doctor')fail(403,'Фото профиля доступно врачу');
+  if(path.length!==2)fail(404,'Страница не найдена');
   if(!['PUT','DELETE'].includes(req.method))fail(405,'Действие не поддерживается');
   if(!bucket)fail(503,'Хранилище фото временно недоступно');
   const previous=u.avatar_key??null;let next:string|null=null;
@@ -34,8 +34,8 @@ export async function avatarApi(req:Request,path:string[],u:any,db:D1Database,bu
  }
  if(req.method!=='GET'||path.length!==2)fail(405,'Действие не поддерживается');
  const id=path[1];
- const permitted=u.id===id||(u.role==='patient'&&await db.prepare('SELECT patient_id FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(u.id,id).first());
+ const permitted=u.id===id||(u.role==='patient'&&await db.prepare('SELECT patient_id FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(u.id,id).first())||(u.role==='doctor'&&await db.prepare('SELECT patient_id FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(id,u.id).first());
  if(!permitted)fail(404,'Фото не найдено');
- const doctor=await db.prepare("SELECT avatar_key FROM users WHERE id=? AND role='doctor'").bind(id).first();
- return avatarImage(doctor,bucket);
+ const owner=await db.prepare("SELECT avatar_key FROM users WHERE id=?").bind(id).first();
+ return avatarImage(owner,bucket);
 }
