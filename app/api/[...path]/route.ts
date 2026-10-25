@@ -1,6 +1,10 @@
+import { healthApi, HealthError } from '../../../lib/health-api';
+import { dailyDiaryApi } from '../../../lib/daily-diary-api';
+import { shortcutUpload, shortcutManagement } from '../../../lib/health-shortcut-api';
 import { env } from 'cloudflare:workers';
 import { EMOTIONS, safetyNotice } from '../../../lib/patient-chat';
 import { digest, randomToken, passwordHash, passwordMatches } from '../../../lib/security';
+import { assessmentApi, AssessmentError } from '../../../lib/assessment-api';
 export const dynamic='force-dynamic';
 const DAY=86400000;
 const db=()=>{if(!env.DB)throw new Error('Database unavailable');return env.DB;};
@@ -23,6 +27,7 @@ async function throttle(req:Request,kind:string,key:string,limit=10){const id=aw
 async function handle(req:Request){
  const url=new URL(req.url), path=url.pathname.replace(/^\/api\/?/,'').split('/').filter(Boolean), method=req.method;
  if(method!=='GET'){const origin=req.headers.get('origin');if(origin && origin!==url.origin)fail(403,'Запрос с другого сайта запрещён');if(req.headers.get('sec-fetch-site')==='cross-site')fail(403,'Запрос с другого сайта запрещён');}
+ const shortcutResponse=await shortcutUpload(req,path,db());if(shortcutResponse)return shortcutResponse;
  if(path[0]==='auth' && method==='POST'){
   const b=await body(req);
   if(path[1]==='logout'){if(req.headers.has('x-compass-user'))await current(req);const token=sessionToken(req);if(token)await run('DELETE FROM sessions WHERE token=?',await digest(token));return respond({ok:true},200,'compass_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');}
@@ -49,6 +54,10 @@ async function handle(req:Request){
   const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);return respond({doctor:doctorProfile(d),expires:inv.expires});
  }
  const u=await current(req);
+ const syncResponse=await shortcutManagement(req,path,u,db());if(syncResponse)return syncResponse;
+ const healthResponse=await healthApi(req,path,u,db());if(healthResponse)return healthResponse;
+ const diaryResponse=await dailyDiaryApi(req,path,u,db());if(diaryResponse)return diaryResponse;
+ const assessmentResponse=await assessmentApi(req,path,u,db());if(assessmentResponse)return assessmentResponse;
  if(path[0]==='journal' || path[0]==='chat'){
   if(u.role!=='patient')fail(403,'Чат и личный дневник доступны только пациенту');
   if(path[0]==='journal'){
@@ -123,7 +132,7 @@ async function handle(req:Request){
   if(path[2]==='journal'&&method==='GET'){const entries=await all('SELECT * FROM mood_entries WHERE patient_id=? AND shared_doctor_id=? ORDER BY created_at DESC,id DESC LIMIT 100',p.id,u.id);return respond({entries:entries.map(entryView)});}
   if(method==='GET')return respond({patient:p});
   if(method==='PATCH'){const b=await body(req);const status=b.status??p.status;if(!['stable','attention','followup'].includes(status))fail(400,'Некорректный статус');await run('UPDATE patient_records SET status=?,summary=?,recommendations=?,private_notes=?,updated_at=? WHERE patient_id=? AND doctor_id=?',status,b.summary===undefined?p.summary:clean(b.summary,10000),b.recommendations===undefined?p.recommendations:clean(b.recommendations,10000),b.privateNotes===undefined?p.privateNotes:clean(b.privateNotes,10000),Date.now(),p.id,u.id);return respond({ok:true});}
-  if(method==='DELETE'){await run('DELETE FROM patient_records WHERE patient_id=? AND doctor_id=?',p.id,u.id);return respond({ok:true});}
+  if(method==='DELETE'){await db().batch([db().prepare('DELETE FROM health_sharing WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare("UPDATE test_assignments SET status='paused',updated_at=? WHERE patient_id=? AND doctor_id=?").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM diary_plans WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE daily_diary_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('DELETE FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id)]);return respond({ok:true});}
  }
  if(path[0]==='my-care' && method==='GET'){
   if(u.role!=='patient')fail(403,'Только для пациента');
@@ -132,5 +141,5 @@ async function handle(req:Request){
  }
  fail(404,'Страница не найдена');
 }
-async function route(req:Request){try{return await handle(req);}catch(e){if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
-export {route as GET,route as POST,route as PATCH,route as DELETE};
+async function route(req:Request){try{return await handle(req);}catch(e){if(e instanceof HealthError)return respond({error:e.message},e.status);if(e instanceof AssessmentError)return respond({error:e.message},e.status);if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
+export {route as GET,route as POST,route as PUT,route as PATCH,route as DELETE};
