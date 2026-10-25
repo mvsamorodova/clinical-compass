@@ -57,14 +57,16 @@ await req('patients/'+p.user.id+'/safety-plan',other,'GET',undefined,404);
 await req('patients/'+p.user.id+'/safety-plan',d,'POST',post,405);
 const blocked=await fetch(base+'/api/safety-plan',{method:'POST',headers:{Origin:'https://invalid.test',Cookie:stranger.cookie,'Content-Type':'application/json'},body:JSON.stringify(post)});assert.equal(blocked.status,403);
 
-let map=await req('recovery-map',p);assert.equal(map.nodes.filter(n=>n.status==='available').length,1);
+let map=await req('recovery-map',p);assert.equal(map.nodes.length,7);assert.ok(map.nodes.every(n=>n.status==='available'));
 const progress=(key,status='completed',answer='TEST_PRIVATE_MAP_'+stamp)=>req('recovery-map/'+key,p,'PUT',{status,answer});
-await req('recovery-map/horizon',p,'PUT',{status:'completed',answer:'skip'},409);
-await req('recovery-map/branch',p,'PUT',{branch:'body'},409);
+await progress('horizon');
+map=await req('recovery-map',p);assert.equal(map.nodes.find(n=>n.key==='horizon').status,'completed');assert.equal(map.nodes.find(n=>n.key==='roots').status,'available');
+await req('recovery-map/branch',p,'PUT',{branch:'body'});
+assert.equal((await req('recovery-map',p)).branch,'body');
 await req('recovery-map/roots',p,'PUT',{status:'completed',answer:''},400);
 await progress('roots','in_progress');assert.equal((await req('recovery-map',p)).nodes[0].status,'in_progress');
 await progress('roots');await progress('understand');
-assert.equal((await req('recovery-map',p)).nodes.find(n=>n.key==='body').status,'locked');
+assert.equal((await req('recovery-map',p)).nodes.find(n=>n.key==='body').status,'available');
 const reflections=[{id:'moment',value:'TEST_PRIVATE_REFLECTION_'+stamp},{id:'pace',value:'Спокойно'}];
 const diary={id:crypto.randomUUID(),mood:4,emotions:[],note:'',shareWithDoctor:false,reflections};
 await req('journal',p,'POST',{...diary,reflections:[...reflections,reflections[0]]},400);
@@ -101,4 +103,4 @@ const actual=(await req('patients/'+stranger.user.id+'/tests/results/'+sameId,d)
 assert.equal((await req('alerts',d)).alerts.filter(a=>a.patientId===stranger.user.id).length,actual[8]>0?1:0);
 await req('patients/'+p.user.id,d,'DELETE');await req('patients/'+p.user.id+'/safety-plan',d,'GET',undefined,404);assert.equal((await req('alerts',d)).alerts.filter(a=>a.patientId===p.user.id).length,0);
 await link(other,p);assert.equal((await req('alerts',other)).alerts.length,0);assert.equal((await req('safety-plan',p)).plan.data.reason,plan.reason);
-console.log(`PASS: clinical boundary checks + ${checks} API checks: immutable plan, concurrent save, permissions, reflection privacy, map gates and private answers, atomic alerts and acknowledgement.`);
+console.log(`PASS: clinical boundary checks + ${checks} API checks: immutable plan, concurrent save, permissions, reflection privacy, freely accessible modules and private answers, atomic alerts and acknowledgement.`);
