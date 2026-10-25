@@ -1,4 +1,4 @@
-import { Unzip, UnzipInflate, UnzipPassThrough } from 'fflate';
+import { Unzip, UnzipInflate, UnzipPassThrough, type AsyncFlateStreamHandler } from 'fflate';
 import type { HealthMetric, HealthProvider } from './health-data';
 export type HealthSeries={id:string;metric:HealthMetric;source:string;days:Record<string,number>};
 export type HealthPreview={provider:HealthProvider;series:HealthSeries[];warnings:string[]};
@@ -132,18 +132,69 @@ function completeZip(tail:Uint8Array){
  for(let i=tail.length-22;i>=0;i--)if(tail[i]===0x50&&tail[i+1]===0x4b&&tail[i+2]===5&&tail[i+3]===6&&i+22+tail[i+20]+256*tail[i+21]===tail.length)return true;
  return false;
 }
+// Names can be localized or changed when the export is saved. Inspect the XML
+// root, skipping declarations, DTDs and comments; never expand entities.
+function xmlRoot(header:string):string|null{
+ let at=0;
+ while(at<header.length){
+  while(/\s|\uFEFF/.test(header[at]??'')&&at<header.length)at++;
+  if(at===header.length)return null;
+  if(header.startsWith('<?',at)||header.startsWith('<!--',at)){
+   const marker=header.startsWith('<?',at)?'?>':'-->',end=header.indexOf(marker,at+2);if(end<0)return null;at=end+marker.length;continue;
+  }
+  if(header.startsWith('<!DOCTYPE',at)){
+   let quote='',depth=0,end=-1;
+   for(let i=at+9;i<header.length;i++){const char=header[i];if(quote){if(char===quote)quote='';}else if(char==='"'||char==="'")quote=char;else if(char==='[')depth++;else if(char===']')depth--;else if(char==='>'&&depth===0){end=i;break;}}
+   if(end<0)return null;at=end+1;continue;
+  }
+  const root=/^<([A-Za-z_][\w:.-]*)(?:\s|\/?>)/.exec(header.slice(at));if(root)return root[1];
+  return null;
+ }
+ return null;
+}
+function zipEntryKind(name:string){
+ const path=name.replace(/\\/g,'/'),parts=path.split('/');
+ if(parts.some(part=>part==='__MACOSX'||part.startsWith('._')))return null;
+ if(/\.xml$/i.test(path))return 'xml';
+ if(/(^|\/)health_connect_export\.db$/i.test(path))return 'db';
+ return null;
+}
+const MULTIPLE_EXPORTS='В архиве несколько выгрузок здоровья. Выберите ZIP одного экспорта Apple «Здоровье» или Health Connect.';
 export async function parseHealthChunks(chunks:AsyncIterable<Uint8Array>|Iterable<Uint8Array>,name:string):Promise<HealthPreview>{
  if(!/\.zip$/i.test(name)){const data=consumer(name);for await(const chunk of chunks)data.push(chunk,false);data.push(new Uint8Array(),true);return data.finish();}
  let selected:ReturnType<typeof consumer>|undefined,selectedDone=false,tail=new Uint8Array(0);
  const unzip=new Unzip(file=>{
-  if(!/(^|\/)export\.xml$|(^|\/)health_connect_export\.db$/i.test(file.name)){
+  const kind=zipEntryKind(file.name);
+  if(!kind){
    // Consume irrelevant compressed entries without inflating or retaining them.
    unzip.register(class{static compression=file.compression;ondata!:(error:Error|null,data:Uint8Array,final:boolean)=>void;push(_:Uint8Array,final:boolean){this.ondata(null,new Uint8Array(),final);}});
    file.ondata=error=>{if(error)throw error;};file.start();return;
   }
-  if(selected)throw Error('В ZIP должен быть один export.xml Apple или health_connect_export.db Android.');
-  selected=consumer(file.name);unzip.register(UnzipPassThrough);unzip.register(UnzipInflate);
-  file.ondata=(error,bytes,final)=>{if(error)throw error;selected!.push(bytes,final);if(final)selectedDone=true;};file.start();
+  if(![0,8].includes(file.compression))throw Error('Этот способ сжатия ZIP пока не поддерживается. Нужен исходный архив экспорта из приложения «Здоровье».');
+  if(kind==='db'){
+   if(selected)throw Error(MULTIPLE_EXPORTS);
+   const data=consumer(file.name);selected=data;unzip.register(UnzipPassThrough);unzip.register(UnzipInflate);
+   file.ondata=(error,bytes,final)=>{if(error)throw error;data.push(bytes,final);if(final)selectedDone=true;};file.start();return;
+  }
+  let active=true,data:ReturnType<typeof consumer>|undefined,header='',headerBytes=0,pending:Uint8Array[]=[];
+  const decoder=new TextDecoder(),probeLimit=256*1024;
+  // Once another XML format is identified (for example CDA), skip its remaining
+  // compressed bytes rather than inflating the entire unrelated medical file.
+  unzip.register(class{
+   static compression=file.compression;ondata!:AsyncFlateStreamHandler;private inner=file.compression===8?new UnzipInflate():new UnzipPassThrough();
+   constructor(){this.inner.ondata=(error,bytes,final)=>this.ondata(error,bytes,final);}
+   push(bytes:Uint8Array,final:boolean){if(active)this.inner.push(bytes,final);}
+  });
+  file.ondata=(error,bytes,final)=>{
+   if(error)throw error;if(!active)return;
+   if(data){data.push(bytes,final);if(final)selectedDone=true;return;}
+   const probe=bytes.subarray(0,Math.max(0,probeLimit-headerBytes));headerBytes+=probe.length;header+=decoder.decode(probe,{stream:!final});const root=xmlRoot(header);
+   if(root==='HealthData'){
+    if(selected)throw Error(MULTIPLE_EXPORTS);
+    data=consumer(file.name);selected=data;for(const chunk of pending)data.push(chunk,false);pending=[];header='';data.push(bytes,final);if(final)selectedDone=true;
+   }else if(root||final||headerBytes>=probeLimit){active=false;pending=[];header='';}
+   else pending.push(bytes.slice());
+  };file.start();
  });
  for await(const chunk of chunks){
   const end=new Uint8Array(Math.min(65557,tail.length+chunk.length)),old=Math.max(0,end.length-chunk.length);end.set(tail.subarray(tail.length-old));end.set(chunk.subarray(Math.max(0,chunk.length-end.length)),old);tail=end;
@@ -151,7 +202,7 @@ export async function parseHealthChunks(chunks:AsyncIterable<Uint8Array>|Iterabl
  }
  unzip.push(new Uint8Array(),true);
  if(!completeZip(tail))throw Error('Не удалось прочитать ZIP: архив повреждён или загружен не полностью.');
- if(!selected)throw Error('В ZIP должен быть один export.xml Apple или health_connect_export.db Android.');
+ if(!selected)throw Error('В ZIP не найдена выгрузка Apple «Здоровье» или Health Connect. На iPhone создайте архив через «Здоровье → профиль → Экспортировать все данные здоровья» и выберите полученный ZIP целиком.');
  if(!selectedDone)throw Error('Не удалось прочитать ZIP: архив повреждён или загружен не полностью.');
  return selected.finish();
 }

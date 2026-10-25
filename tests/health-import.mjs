@@ -56,7 +56,19 @@ for(const level of [0,6])eq(await parseHealthFile(zipSync({'private-route.gpx':s
 await assert.rejects(()=>parseHealthChunks(split(strToU8(xml.slice(0,-13)),5),'export.xml'),/полный export.xml/);checks++;
 await assert.rejects(()=>parseHealthFile(strToU8(xml+'unexpected'),'export.xml'),/лишние данные/);checks++;
 await assert.rejects(()=>parseHealthFile(azip.subarray(0,-10),'truncated.zip'));checks++;
-await assert.rejects(()=>parseHealthFile(zipSync({'export.xml':strToU8(xml),'other/export.xml':strToU8(xml)}),'duplicate.zip'),/один export.xml/);checks++;
+await assert.rejects(()=>parseHealthFile(zipSync({'export.xml':strToU8(xml),'other/export.xml':strToU8(xml)}),'duplicate.zip'),/несколько выгрузок здоровья/);checks++;
+for(const path of ['apple_health_export/экспорт.xml','apple_health_export\\export.xml','Данные здоровья/Мои данные.XML'])eq(await parseHealthFile(zipSync({[path]:strToU8(xml)}),'Экспорт.zip'),apple);
+const declaredXml=xml.replace('<HealthData locale="ru_RU">','<!DOCTYPE HealthData [<!ELEMENT HealthData ANY><!ENTITY ignored "<HealthData>">]><!-- Health export --><HealthData locale="ru_RU">');
+const localizedZip=zipSync({
+ 'apple_health_export/export_cda.xml':strToU8('<?xml version="1.0"?><!-- <HealthData> --><ClinicalDocument><![CDATA[<HealthData>]]></ClinicalDocument>'),
+ '__MACOSX/apple_health_export/export.xml':strToU8(xml),
+ 'apple_health_export/._экспорт.xml':strToU8(xml),
+ 'apple_health_export/экспорт.xml':strToU8(declaredXml)
+});
+eq(await parseHealthChunks(split(localizedZip,23),'экспорт.zip'),apple);
+eq(await parseHealthExportFile(new File([localizedZip],'экспорт.zip')),apple);
+await assert.rejects(()=>parseHealthFile(zipSync({'export.xml':strToU8('<ClinicalDocument/>')}),'not-health.zip'),/не найдена выгрузка/);checks++;
+await assert.rejects(()=>parseHealthFile(zipSync({'renamed.xml':strToU8(xml.slice(0,-13))}),'broken-health.zip'),/полный export.xml/);checks++;
 function streamZip(chunks){
  const output=[];let length=0,done=false;
  const zip=new Zip((error,bytes,final)=>{if(error)throw error;output.push(bytes);length+=bytes.length;done=final;});
@@ -74,4 +86,5 @@ if(process.argv.includes('--large')){
  mkdirSync('outputs/health-fixtures',{recursive:true});writeFileSync('outputs/health-fixtures/apple-over-600mb.zip',zipped);
 }
 mkdirSync('outputs/health-fixtures',{recursive:true});writeFileSync('outputs/health-fixtures/apple-demo.zip',azip);writeFileSync('outputs/health-fixtures/android-demo.zip',hzip);
+writeFileSync('outputs/health-fixtures/apple-localized-export.zip',localizedZip);
 console.log(`PASS: ${checks} health parser checks. Synthetic Apple and native Android ZIP fixtures, source isolation, overlap deduplication, midnight splits, excluded awake/rest time and unsupported schema rejection.`);
