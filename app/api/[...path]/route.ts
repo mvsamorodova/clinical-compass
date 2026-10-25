@@ -1,3 +1,4 @@
+import {modelAssetsApi} from '../../../lib/model-assets-api';
 import {voiceApi} from '../../../lib/voice-api';
 import {careToolsApi} from '../../../lib/care-tools-api';
 import {validateReflections} from '../../../lib/reflection';
@@ -30,6 +31,7 @@ async function throttle(req:Request,kind:string,key:string,limit=10){const id=aw
 async function handle(req:Request){
  const url=new URL(req.url), path=url.pathname.replace(/^\/api\/?/,'').split('/').filter(Boolean), method=req.method;
  if(method!=='GET'){const origin=req.headers.get('origin');if(origin && origin!==url.origin)fail(403,'Запрос с другого сайта запрещён');if(req.headers.get('sec-fetch-site')==='cross-site')fail(403,'Запрос с другого сайта запрещён');}
+ const modelResponse=await modelAssetsApi(req,path,env.BUCKET,env.MODEL_ASSET_UPLOAD_KEY);if(modelResponse)return modelResponse;
  const shortcutResponse=await shortcutUpload(req,path,db());if(shortcutResponse)return shortcutResponse;
  if(path[0]==='auth' && method==='POST'){
   const b=await body(req);
@@ -151,6 +153,6 @@ async function handle(req:Request){
 async function route(req:Request){try{return await handle(req);}catch(e){
  // Consume rejected voice uploads as a stream, including auth/CSRF failures,
  // so the Worker can finish this request without breaking the next connection.
- if(new URL(req.url).pathname.startsWith('/api/voice/')&&req.body&&!req.bodyUsed){try{const reader=req.body.getReader();while(!(await reader.read()).done){}reader.releaseLock();}catch{}}
+ if(/^\/api\/(voice|model-assets)\//.test(new URL(req.url).pathname)&&req.body&&!req.bodyUsed){try{const reader=req.body.getReader();while(!(await reader.read()).done){}reader.releaseLock();}catch{}}
 if(e instanceof HealthError)return respond({error:e.message},e.status);if(e instanceof AssessmentError)return respond({error:e.message},e.status);if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
 export {route as GET,route as POST,route as PUT,route as PATCH,route as DELETE};

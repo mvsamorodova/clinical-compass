@@ -9,7 +9,7 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
-    "build": "node scripts/prepare-gigaam-runtime.mjs && node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build && node scripts/prune-browser-assets.mjs",
+    "build": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build && node scripts/prune-browser-assets.mjs",
     "preview": "node --import ./scripts/runtime.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 8787 --inspector-port 0",
     "check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",

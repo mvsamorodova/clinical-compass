@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 
 // Generated model assets are excluded from Git, like the browser WASM runtime.
-// The manifest pins every byte. Fresh checkouts restore the published version;
+// The manifest pins every byte. For maintenance, restore the published version;
 // the initial publish is prepared from the reproducible official-weight export.
 const manifest=JSON.parse(await readFile(new URL('../lib/gigaam-model-manifest.json',import.meta.url),'utf8'));
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -13,7 +13,7 @@ const exported=args.length?await readFile(args[1]):null;
 if(exported&&(exported.length!==manifest.bytes||sha(exported)!==manifest.sha256))throw Error('Unexpected model export: byte length or SHA-256 differs.');
 let offset=0;
 for(const chunk of manifest.chunks){
-  const destination=path.join('public',chunk.url);
+  const destination=path.join('outputs/model-assets',path.basename(chunk.url));
   let bytes=exported?.subarray(offset,offset+chunk.bytes);offset+=chunk.bytes;
   if(!bytes)try{bytes=await readFile(destination);}catch{
     const response=await fetch('https://clinical-compass-v3.feyzebra.chatgpt.site'+chunk.url,{signal:AbortSignal.timeout(120000)});
