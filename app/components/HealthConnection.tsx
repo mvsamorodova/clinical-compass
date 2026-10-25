@@ -54,13 +54,13 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
  }
  const canLaunch = launch && Date.now() < launch.expiresAt && state === 'waiting';
 
- return <section className="panel health-panel shortcut-panel" aria-labelledby="shortcut-title">
+ return <section className={"panel health-panel shortcut-panel"+(!SHORTCUT_AVAILABLE?" shortcut-unavailable":"")} aria-labelledby="shortcut-title">
   <div className="tests-heading">
-   <div><span className="eyebrow">APPLE «ЗДОРОВЬЕ» · IPHONE</span><h2 id="shortcut-title">Подключим сон и активность</h2><p>Сон, шаги и активность из приложения «Здоровье».</p></div>
+   <div><h2 id="shortcut-title">Команда для iPhone</h2>{!SHORTCUT_AVAILABLE&&<p>Пока недоступна — используйте импорт архива.</p>}</div>
    <Smartphone size={30} aria-hidden="true"/>
   </div>
-  {!SHORTCUT_AVAILABLE && <div className="shortcut-before"><strong>В v3 пока доступен импорт архива</strong><p>Команда для iPhone ещё готовится. Данные можно перенести из экспорта приложения «Здоровье» — с проверкой перед сохранением.</p><a className="secondary" href="#health-file-import"><FileUp size={17} aria-hidden="true"/>Загрузить архив «Здоровья»</a></div>}
-  <details open={SHORTCUT_AVAILABLE}><summary>{SHORTCUT_AVAILABLE ? 'Подключение через «Команды»' : 'Как подключение через «Команды» будет работать'}</summary>
+
+  <details open={SHORTCUT_AVAILABLE}><summary>{SHORTCUT_AVAILABLE ? 'Подключение через «Команды»' : 'Как это будет работать'}</summary>
   <p>Часы сначала передают показатели в приложение «Здоровье» на iPhone. Команда Apple переносит сон, шаги и минуты упражнений сюда. Вы проверяете их перед сохранением.</p>
   <div className="shortcut-before"><strong>Перед началом</strong><p>Откройте «Здоровье» и убедитесь, что там есть нужные записи. Если данных о сне нет, команда не сможет их добавить. Для подключения откройте этот сайт в Safari на iPhone и войдите в свой кабинет.</p></div>
   <a className="shortcut-skip" href="#shortcut-launch">Команда уже установлена? Перейти к запуску →</a>
@@ -116,6 +116,6 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
   </details>
   <p className="health-note">Обновление запускается вручную. Передаются только записи сна, шагов и упражнений за последние 8 суток для расчёта 7 календарных дней. На сервере остаются суточные итоги по источникам. Предпросмотр доступен около часа. Доступ врачу включается отдельно.</p>
   </details>
-  <a className="shortcut-fallback" href="#health-file-import"><FileUp size={18} aria-hidden="true"/><span>Не получается через «Команды»? Загрузить архив «Здоровья»</span></a>
+  {SHORTCUT_AVAILABLE&&<a className="shortcut-fallback" href="#health-file-import"><FileUp size={18} aria-hidden="true"/>Загрузить архив вместо команды</a>}
  </section>;
 }
