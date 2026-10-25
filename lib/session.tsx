@@ -1,11 +1,12 @@
 'use client';
+import type {SocialLink} from './social-links';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 export type User = {
   id: string; name: string; email: string; role: 'doctor' | 'patient'; birthDate: string;
   phone: string; specialty: string; clinic: string; bio: string; contactEmail: string;
-  schedule: string; isDemo: boolean; avatarUrl?: string | null;
+  schedule: string; isDemo: boolean; socialLinks?:SocialLink[]; avatarUrl?: string | null;
 };
 const SESSION_EVENT = 'compass-session-changed';
 const CHANGED_MESSAGE = 'Аккаунт изменился в другой вкладке. Кабинет обновлён.';

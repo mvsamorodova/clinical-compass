@@ -1,3 +1,4 @@
+import {normalizeSocialLinks,readSocialLinks} from '../../../lib/social-links';
 import {medicationsApi} from '../../../lib/medications-api';
 import {avatarApi,avatarImage} from '../../../lib/avatar-api';
 import {avatarUrl} from '../../../lib/avatars';
@@ -25,8 +26,8 @@ function fail(status:number,message:string):never {throw new ApiError(status,mes
 function requestId(value:unknown){if(typeof value!=='string'||!/^[a-f0-9-]{36}$/.test(value))fail(400,'Некорректный идентификатор записи');return value;}
 function entryView(r:any){return {id:r.id,mood:r.mood,emotions:JSON.parse(r.emotions),note:r.note,reflections:JSON.parse(r.reflections_json||'[]'),sharedWithDoctor:!!r.shared_doctor_id,createdAt:r.created_at};}
 function clean(value:any,max=5000){if(typeof value!=='string')return '';return value.trim().slice(0,max);}
-function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email,birthDate:u.birth_date,phone:u.phone,specialty:u.specialty,clinic:u.clinic,bio:u.bio,contactEmail:u.contact_email,schedule:u.schedule,isDemo:!!u.demo_group,avatarUrl:avatarUrl(u)};}
-function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule,avatarUrl:avatarUrl(u)};}
+function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email,birthDate:u.birth_date,phone:u.phone,specialty:u.specialty,clinic:u.clinic,bio:u.bio,contactEmail:u.contact_email,schedule:u.schedule,isDemo:!!u.demo_group,avatarUrl:avatarUrl(u),socialLinks:readSocialLinks(u.social_links)};}
+function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule,avatarUrl:avatarUrl(u),socialLinks:readSocialLinks(u.social_links)};}
 function respond(data:any,status=200,cookie?:string){return Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...(cookie?{'Set-Cookie':cookie}:{})}});}
 function sessionToken(req:Request){return /(?:^|;\s*)compass_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.get('cookie')||'')?.[1];}
 async function current(req:Request){const token=sessionToken(req);if(!token)fail(401,'Войдите в аккаунт');const u=await row('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',await digest(token),Date.now());if(!u)fail(401,'Сессия завершена. Войдите снова');const expected=req.headers.get('x-compass-user');if(expected && expected!==u.id)throw new ApiError(409,'Аккаунт изменился в другой вкладке. Обновите кабинет. Для приглашения пациента войдите как врач.','SESSION_CHANGED');return u;}
@@ -126,7 +127,8 @@ async function handle(req:Request){
  if(path[0]==='me' && method==='GET')return respond({user:publicUser(u)});
  if(path[0]==='me' && method==='PATCH'){
   const b=await body(req),name=clean(b.name,100);if(!name)fail(400,'Укажите имя');const birthDate=clean(b.birthDate,10);if(birthDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)||!Number.isFinite(Date.parse(birthDate))||birthDate>new Date().toISOString().slice(0,10)))fail(400,'Проверьте дату рождения');
-  await run('UPDATE users SET name=?,birth_date=?,phone=?,specialty=?,clinic=?,bio=?,contact_email=?,schedule=? WHERE id=?',name,birthDate,clean(b.phone,40),u.role==='doctor'?clean(b.specialty,100):u.specialty,u.role==='doctor'?clean(b.clinic,150):u.clinic,u.role==='doctor'?clean(b.bio,2000):u.bio,u.role==='doctor'?clean(b.contactEmail,254):u.contact_email,u.role==='doctor'?clean(b.schedule,200):u.schedule,u.id);
+  let socialLinks=readSocialLinks(u.social_links);if(b.socialLinks!==undefined)try{socialLinks=normalizeSocialLinks(b.socialLinks);}catch(e){fail(400,(e as Error).message);}
+  await run('UPDATE users SET name=?,birth_date=?,phone=?,specialty=?,clinic=?,bio=?,contact_email=?,schedule=?,social_links=? WHERE id=?',name,birthDate,clean(b.phone,40),u.role==='doctor'?clean(b.specialty,100):u.specialty,u.role==='doctor'?clean(b.clinic,150):u.clinic,u.role==='doctor'?clean(b.bio,2000):u.bio,u.role==='doctor'?clean(b.contactEmail,254):u.contact_email,u.role==='doctor'?clean(b.schedule,200):u.schedule,JSON.stringify(socialLinks),u.id);
   return respond({user:publicUser(await row('SELECT * FROM users WHERE id=?',u.id))});
  }
  if(path[0]==='demo' && path[1]==='switch' && method==='POST'){
@@ -144,16 +146,16 @@ async function handle(req:Request){
  if(path[0]==='patients'){
   if(u.role!=='doctor')fail(403,'Это действие доступно в аккаунте врача. Войдите как врач и повторите попытку.');
   if(!path[1] && method==='GET')return respond({patients:(await all(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,${observationStatus} AS status,CASE WHEN r.status='attention' THEN 'attention' ELSE 'stable' END AS manualStatus,r.summary,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.doctor_id=? ORDER BY r.updated_at DESC`,u.id)).map(p=>{const {avatar_key,...data}=p;return {...data,avatarUrl:avatarUrl({id:p.id,avatar_key})};})});
-  const p=await row(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,${observationStatus} AS status,CASE WHEN r.status='attention' THEN 'attention' ELSE 'stable' END AS manualStatus,r.summary,r.recommendations,r.private_notes AS privateNotes,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.patient_id=? AND r.doctor_id=?`,path[1]||'',u.id);if(!p)fail(404,'Пациент не найден');
+  const p=await row(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,u.social_links,${observationStatus} AS status,CASE WHEN r.status='attention' THEN 'attention' ELSE 'stable' END AS manualStatus,r.summary,r.recommendations,r.private_notes AS privateNotes,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.patient_id=? AND r.doctor_id=?`,path[1]||'',u.id);if(!p)fail(404,'Пациент не найден');
   if(path[2]==='journal'&&method==='GET'){const entries=await all('SELECT * FROM mood_entries WHERE patient_id=? AND shared_doctor_id=? ORDER BY created_at DESC,id DESC LIMIT 100',p.id,u.id);return respond({entries:entries.map(entryView)});}
-  if(method==='GET'){const {avatar_key,...data}=p;return respond({patient:{...data,avatarUrl:avatarUrl({id:p.id,avatar_key})}});}
+  if(method==='GET'){const {avatar_key,social_links,...data}=p;return respond({patient:{...data,avatarUrl:avatarUrl({id:p.id,avatar_key}),socialLinks:readSocialLinks(social_links)}});}
   if(method==='PATCH'){const b=await body(req);const status=b.status??p.manualStatus;if(!['stable','attention'].includes(status))fail(400,'Некорректный статус');await run('UPDATE patient_records SET status=?,summary=?,recommendations=?,private_notes=?,updated_at=? WHERE patient_id=? AND doctor_id=?',status,b.summary===undefined?p.summary:clean(b.summary,10000),b.recommendations===undefined?p.recommendations:clean(b.recommendations,10000),b.privateNotes===undefined?p.privateNotes:clean(b.privateNotes,10000),Date.now(),p.id,u.id);return respond({ok:true});}
   if(method==='DELETE'){await db().batch([db().prepare("UPDATE medication_orders SET status='stopped',revision=revision+1,updated_at=? WHERE patient_id=? AND doctor_id=? AND status='active'").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM health_sharing WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare("UPDATE test_assignments SET status='paused',updated_at=? WHERE patient_id=? AND doctor_id=?").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM diary_plans WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE daily_diary_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('DELETE FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id)]);return respond({ok:true});}
  }
  if(path[0]==='my-care' && method==='GET'){
   if(u.role!=='patient')fail(403,'Только для пациента');
   // Explicit projection: private_notes must never enter a patient response.
-  const r=await row('SELECT doctor_id,summary,recommendations,updated_at AS updatedAt FROM patient_records WHERE patient_id=?',u.id);if(!r)return respond({record:null,doctor:null});const d=await row('SELECT id,name,specialty,clinic,bio,phone,contact_email,schedule,avatar_key FROM users WHERE id=?',r.doctor_id);return respond({record:{summary:r.summary,recommendations:r.recommendations,updatedAt:r.updatedAt},doctor:doctorProfile(d)});
+  const r=await row('SELECT doctor_id,summary,recommendations,updated_at AS updatedAt FROM patient_records WHERE patient_id=?',u.id);if(!r)return respond({record:null,doctor:null});const d=await row('SELECT id,name,specialty,clinic,bio,phone,contact_email,schedule,avatar_key,social_links FROM users WHERE id=?',r.doctor_id);return respond({record:{summary:r.summary,recommendations:r.recommendations,updatedAt:r.updatedAt},doctor:doctorProfile(d)});
  }
  fail(404,'Страница не найдена');
 }
