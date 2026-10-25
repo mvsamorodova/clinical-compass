@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {normalizeShortcut} from '../lib/health-shortcut.ts';
+const now=Date.parse('2026-10-22T12:00:00+08:00');
+const sample=(value,source='Watch',start='2026-10-21T23:00:00+08:00',end='2026-10-22T07:00:00+08:00')=>({value,source,start,end});
+const packed=rows=>rows.map(r=>JSON.stringify(r,null,2)).join('\x1e');
+const base={capturedAt:'2026-10-22T12:00:00+08:00',steps:'',sleep:'',activity:''};
+let checks=0;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
+const body={...base,steps:packed([sample('6 000','Phone','2026-10-22T08:00:00+08:00','2026-10-22T09:00:00+08:00'),sample(6100,'Watch','2026-10-22T08:00:00+08:00','2026-10-22T09:00:00+08:00')]),sleep:packed([sample(1),sample(4),sample(0,'Bed'),sample(2,'Awake')]),activity:packed([sample('35,5','Watch','2026-10-22T09:00:00+08:00','2026-10-22T10:00:00+08:00')])};
+const p=normalizeShortcut(body,now);
+eq(p.series.length,4);eq(p.series.find(s=>s.metric==='sleepMinutes').days,{'2026-10-21':60,'2026-10-22':420});
+eq(p.series.find(s=>s.metric==='steps'&&s.source==='Phone').days,{'2026-10-22':6000});
+eq(p.series.find(s=>s.metric==='steps'&&s.source==='Watch').days,{'2026-10-22':6100});
+eq(p.series.find(s=>s.metric==='activeMinutes').days,{'2026-10-22':36});
+eq(normalizeShortcut({...base,sleep:packed([sample('Unrecognized sleep stage')])},now).series,[]);
+eq(normalizeShortcut(base,now).series,[]);
+eq(normalizeShortcut({...base,steps:packed([sample(0),sample(0)])},now).series[0].days,{'2026-10-21':0,'2026-10-22':0});
+eq(normalizeShortcut({...base,sleep:packed([sample('asleepCore'),sample('in bed')])},now).series[0].days,{'2026-10-21':60,'2026-10-22':420});
+eq(normalizeShortcut({...base,sleep:packed([sample(1,'Watch','2026-10-15T23:00:00+08:00','2026-10-16T07:00:00+08:00')])},now).series[0].days,{'2026-10-16':420});
+for(const b of [{...base,capturedAt:'2026-10-22T12:00:00'}, {...base,steps:'broken'}, {...base,steps:packed([sample(-1)])}, {...base,steps:packed([sample(1,'')])}, {...base,steps:packed([sample(1,'Phone','2026-01-01T08:00:00+08:00')])}, {...base,steps:packed(Array(5001).fill(sample(1)))}]){assert.throws(()=>normalizeShortcut(b,now));checks++;}
+console.log(`PASS: ${checks} shortcut aggregation checks (sources, overlapping sleep, midnight/timezone, missing vs zero, locale, bounded dates/records).`);
