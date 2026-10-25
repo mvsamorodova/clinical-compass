@@ -1,4 +1,5 @@
 'use client';
+import { PatientDailyDiary } from './DailyDiary';
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookHeart, Check, CheckCheck, ChevronLeft, Compass, Heart, LoaderCircle, LockKeyhole, MessageCircle, Plus, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
@@ -129,6 +130,7 @@ export default function PatientChat({ name, initialMode = 'diary' }: { name: str
   const selectedMood = MOODS.find(m => m.value === mood);
   return <section className="chat-page">
     <div className="page-title"><div><span className="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</span><h1>Чат и дневник</h1><p>Отмечайте своё состояние или поговорите с ИИ-помощником.</p></div><span className="chat-private-tag"><LockKeyhole size={14} /> Личное пространство</span></div>
+    {mode === 'diary' && <PatientDailyDiary/>}
     <div className="chat-layout">
       <section className="panel chat-window" aria-label="Чат пациента">
         <header className="chat-window-header"><span className="chat-header-mark"><Compass size={25} /></span><div><h2>{mode === 'diary' ? 'Немного внимания себе' : 'Поговорить с помощником'}</h2><p>{mode === 'diary' ? 'Пара минут, чтобы заметить, как вы' : 'Qwen3 1.7B · бесплатная модель на вашем устройстве'}</p></div><span className="chat-mode-badge">{mode === 'diary' ? 'Дневник' : 'ИИ'}</span></header>
