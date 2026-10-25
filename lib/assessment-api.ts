@@ -44,6 +44,13 @@ async function saveResult(req:Request,a:any,u:any,db:D1Database){
 }
 
 export async function assessmentApi(req: Request, path: string[], u: any, db: D1Database): Promise<Response | null> {
+ if(path[0]==='assessment-preview'){
+  if(u.role!=='doctor')fail(403,'Предпросмотр теста доступен врачу');
+  if(req.method!=='GET')fail(405,'Предпросмотр не сохраняет ответы');
+  if(path.length!==2)fail(404,'Тест не найден');
+  const test=definition(path[1]);if(!test)fail(404,'Тест не найден');
+  return json({definition:form(test,true)});
+ }
  const patientRoute=path[0]==='tests', doctorRoute=path[0]==='patients'&&path[2]==='tests';
  if(!patientRoute&&!doctorRoute)return null;
  const row=(sql:string,...args:any[])=>db.prepare(sql).bind(...args).first<any>();
