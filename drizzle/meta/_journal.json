@@ -15,6 +15,41 @@
       "when": 1792272912900,
       "tag": "0001_swift_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792432301161,
+      "tag": "0002_smiling_morbius",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792516834653,
+      "tag": "0003_parallel_gunslinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792608286212,
+      "tag": "0004_funny_pride",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792611805833,
+      "tag": "0005_worried_harpoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792668422182,
+      "tag": "0006_good_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }
