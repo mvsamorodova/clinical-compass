@@ -111,6 +111,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const result = await request(path, method, data, expectedId);
       if (current.current?.id !== expectedId) throw new ApiError(409, CHANGED_MESSAGE, 'SESSION_CHANGED');
+      if(method!=='GET')window.dispatchEvent(new Event('compass-data-changed'));
       return result;
     } catch (error) {
       if (error instanceof ApiError && (error.code === 'SESSION_CHANGED' || error.status === 401 || error.status === 403)) {

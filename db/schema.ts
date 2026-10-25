@@ -9,7 +9,7 @@ export const loginAttempts = sqliteTable('login_attempts', {key:text('key').prim
 
 // Patient-owned records. Sharing is tied to an explicitly selected current doctor.
 export const moodEntries = sqliteTable('mood_entries', {
- id:text('id').primaryKey(), patientId:text('patient_id').notNull().references(()=>users.id), mood:integer('mood').notNull(), emotions:text('emotions').notNull().default('[]'), note:text('note').notNull().default(''), sharedDoctorId:text('shared_doctor_id').references(()=>users.id), createdAt:integer('created_at').notNull()
+ id:text('id').primaryKey(), patientId:text('patient_id').notNull().references(()=>users.id), mood:integer('mood').notNull(), emotions:text('emotions').notNull().default('[]'), note:text('note').notNull().default(''), reflectionsJson:text('reflections_json').notNull().default('[]'), sharedDoctorId:text('shared_doctor_id').references(()=>users.id), createdAt:integer('created_at').notNull()
 },t=>[index('mood_by_patient').on(t.patientId,t.createdAt),index('mood_by_doctor').on(t.sharedDoctorId)]);
 export const chatTurns = sqliteTable('chat_turns', {
  id:integer('id').primaryKey({autoIncrement:true}), requestId:text('request_id').notNull().unique(), patientId:text('patient_id').notNull().references(()=>users.id), message:text('message').notNull(), reply:text('reply').notNull(), kind:text('kind').notNull().default('llm'), createdAt:integer('created_at').notNull()
@@ -34,3 +34,9 @@ export const dailyDiaryEntries=sqliteTable('daily_diary_entries',{id:text('id').
 export const healthSyncRequests = sqliteTable('health_sync_requests', {
  id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),tokenHash:text('token_hash').notNull().unique(),createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),receivedAt:integer('received_at'),previewJson:text('preview_json')
 },t=>[index('health_sync_by_patient').on(t.patientId)]);
+
+// One patient plan: the API supports insert/read only, never update or delete.
+export const safetyPlans=sqliteTable('safety_plans',{patientId:text('patient_id').primaryKey().references(()=>users.id),requestId:text('request_id').notNull(),dataJson:text('data_json').notNull(),createdAt:integer('created_at').notNull()});
+export const assessmentAlerts=sqliteTable('assessment_alerts',{resultId:text('result_id').primaryKey().references(()=>testResults.id),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),reasonsJson:text('reasons_json').notNull(),createdAt:integer('created_at').notNull(),reviewedAt:integer('reviewed_at'),reviewedBy:text('reviewed_by').references(()=>users.id)},t=>[index('alerts_by_doctor').on(t.doctorId,t.reviewedAt)]);
+export const mapProgress=sqliteTable('map_progress',{patientId:text('patient_id').notNull().references(()=>users.id),nodeKey:text('node_key').notNull(),status:text('status').notNull(),answer:text('answer').notNull().default(''),updatedAt:integer('updated_at').notNull()},t=>[uniqueIndex('map_node_per_patient').on(t.patientId,t.nodeKey)]);
+export const mapPreferences=sqliteTable('map_preferences',{patientId:text('patient_id').primaryKey().references(()=>users.id),branch:text('branch').notNull()});

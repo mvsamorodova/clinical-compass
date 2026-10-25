@@ -1,3 +1,4 @@
+import {assessmentRisk} from './assessment-risk';
 import { CATALOGUE, validAnswers, validateFields, scoreAssessment, type AssessmentDefinition } from './assessments';
 
 export class AssessmentError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -20,6 +21,7 @@ async function saveResult(req:Request,a:any,u:any,db:D1Database){
  let extra:Record<string,string|number>={};try{extra=validateFields(test,b.extra??{});}catch(e){fail(400,(e as Error).message);}
  const scores=scoreAssessment(test,b.answers);
  if(test.respondent==='external')for(const s of test.scoreDefinitions){if(typeof extra[s.key]==='number')scores[s.key]=extra[s.key] as number;}
+ const riskReasons=assessmentRisk(test.key,test.version,scores,b.answers,extra);
  const answers=JSON.stringify(test.fields?.length?{answers:b.answers,extra}:b.answers);
  const row=(sql:string,...args:any[])=>db.prepare(sql).bind(...args).first<any>();
  const existing=await row('SELECT * FROM test_results WHERE id=? AND assignment_id=?',b.id,a.id);
@@ -32,10 +34,12 @@ async function saveResult(req:Request,a:any,u:any,db:D1Database){
    SELECT ?,a.id,a.next_due_at,?,a.test_version,?,?,?,?,?,a.interval_days,?,? FROM test_assignments a JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id
    WHERE a.id=? AND a.patient_id=? AND a.doctor_id=? AND a.status='active' AND a.next_due_at=? AND a.next_due_at<=? ON CONFLICT DO NOTHING`)
    .bind(b.id,now,answers,scores.depression??0,scores.anxiety??0,scores.stress??0,JSON.stringify(scores),u.id,test.respondent??'patient',a.id,a.patient_id,a.doctor_id,b.dueAt,now),
-  db.prepare(`UPDATE test_assignments SET next_due_at=(SELECT submitted_at+interval_days*86400000 FROM test_results WHERE id=?),updated_at=? WHERE id=? AND next_due_at=? AND EXISTS(SELECT 1 FROM test_results WHERE id=? AND assignment_id=test_assignments.id AND cycle_due_at=?)`).bind(b.id,now,a.id,b.dueAt,b.id,b.dueAt)
+  db.prepare(`UPDATE test_assignments SET next_due_at=(SELECT submitted_at+interval_days*86400000 FROM test_results WHERE id=?),updated_at=? WHERE id=? AND next_due_at=? AND EXISTS(SELECT 1 FROM test_results WHERE id=? AND assignment_id=test_assignments.id AND cycle_due_at=?)`).bind(b.id,now,a.id,b.dueAt,b.id,b.dueAt),
+  ...(riskReasons.length?[db.prepare(`INSERT INTO assessment_alerts(result_id,patient_id,doctor_id,reasons_json,created_at) SELECT r.id,a.patient_id,a.doctor_id,?,? FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE r.id=? AND a.id=? AND r.answers=? AND r.cycle_due_at=? ON CONFLICT(result_id) DO NOTHING`).bind(JSON.stringify(riskReasons),now,b.id,a.id,answers,b.dueAt)]:[])
  ]);
  const saved=await row('SELECT * FROM test_results WHERE id=? AND assignment_id=?',b.id,a.id);
  if(!saved)fail(409,'Назначение изменилось или ответы уже отправлены. Обновите список тестов.');
+ if(saved.answers!==answers||saved.cycle_due_at!==b.dueAt)fail(409,'Эта отправка уже сохранена с другими ответами');
  return json({result:receipt(saved)});
 }
 

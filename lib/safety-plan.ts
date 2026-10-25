@@ -1,0 +1,14 @@
+export type Contact={name:string;phone:string};
+export type SafetyPlan={warningSigns:string[];coping:string[];distractions:Contact[];places:string[];helpers:Contact[];professionals:Contact[];emergencyService:{name:string;address:string;phone:string};hotline:string;saferEnvironment:string[];reason:string;preparedWith:string};
+export function emptySafetyPlan():SafetyPlan{return {warningSigns:['','',''],coping:['','',''],distractions:Array.from({length:2},()=>({name:'',phone:''})),places:['',''],helpers:Array.from({length:3},()=>({name:'',phone:''})),professionals:Array.from({length:2},()=>({name:'',phone:''})),emergencyService:{name:'',address:'',phone:''},hotline:'',saferEnvironment:['',''],reason:'',preparedWith:''};}
+export function validateSafetyPlan(input:unknown):SafetyPlan{
+ if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Заполните план безопасности');const b=input as Record<string,any>;
+ const text=(v:unknown,max=600)=>{if(typeof v!=='string'||v.length>max)throw Error('Проверьте длину полей плана');return v.trim();};
+ const lines=(key:string,size:number)=>{if(!Array.isArray(b[key])||b[key].length!==size)throw Error('Проверьте разделы плана');return b[key].map((v:unknown)=>text(v));};
+ const contacts=(key:string,size:number)=>{if(!Array.isArray(b[key])||b[key].length!==size)throw Error('Проверьте контакты');return b[key].map((c:any)=>{const name=text(c?.name,100),phone=text(c?.phone,40);if((name&&!phone)||(!name&&phone)||phone&&!/^[+\d ()\-]{3,40}$/.test(phone))throw Error('Укажите и имя, и телефон каждого добавленного контакта');return {name,phone};});};
+ const plan:SafetyPlan={warningSigns:lines('warningSigns',3),coping:lines('coping',3),distractions:contacts('distractions',2),places:lines('places',2),helpers:contacts('helpers',3),professionals:contacts('professionals',2),emergencyService:{name:text(b.emergencyService?.name,100),address:text(b.emergencyService?.address,300),phone:text(b.emergencyService?.phone,40)},hotline:text(b.hotline,40),saferEnvironment:lines('saferEnvironment',2),reason:text(b.reason,1000),preparedWith:text(b.preparedWith,100)};
+ for(const phone of [plan.emergencyService.phone,plan.hotline])if(phone&&!/^[+\d ()\-]{3,40}$/.test(phone))throw Error('Проверьте телефон службы помощи');
+ if(plan.emergencyService.phone&&!plan.emergencyService.name)throw Error('Укажите название службы помощи');
+ if(!plan.warningSigns.some(Boolean)||!plan.coping.some(Boolean)||(!plan.distractions.some(c=>c.name)&&!plan.places.some(Boolean))||!plan.helpers.some(c=>c.name)||(!plan.professionals.some(c=>c.name)&&!plan.emergencyService.phone&&!plan.hotline)||!plan.saferEnvironment.some(Boolean)||!plan.reason)throw Error('Добавьте хотя бы один ответ в каждый из семи шагов и контакты, к которым вы сможете обратиться');
+ return plan;
+}

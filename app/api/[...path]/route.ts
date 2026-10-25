@@ -1,3 +1,5 @@
+import {careToolsApi} from '../../../lib/care-tools-api';
+import {validateReflections} from '../../../lib/reflection';
 import { healthApi, HealthError } from '../../../lib/health-api';
 import { dailyDiaryApi } from '../../../lib/daily-diary-api';
 import { shortcutUpload, shortcutManagement } from '../../../lib/health-shortcut-api';
@@ -14,7 +16,7 @@ const all=async(sql:string,...args:any[])=>(await db().prepare(sql).bind(...args
 class ApiError extends Error {constructor(public status:number,message:string,public code?:string){super(message);}}
 function fail(status:number,message:string):never {throw new ApiError(status,message);}
 function requestId(value:unknown){if(typeof value!=='string'||!/^[a-f0-9-]{36}$/.test(value))fail(400,'Некорректный идентификатор записи');return value;}
-function entryView(r:any){return {id:r.id,mood:r.mood,emotions:JSON.parse(r.emotions),note:r.note,sharedWithDoctor:!!r.shared_doctor_id,createdAt:r.created_at};}
+function entryView(r:any){return {id:r.id,mood:r.mood,emotions:JSON.parse(r.emotions),note:r.note,reflections:JSON.parse(r.reflections_json||'[]'),sharedWithDoctor:!!r.shared_doctor_id,createdAt:r.created_at};}
 function clean(value:any,max=5000){if(typeof value!=='string')return '';return value.trim().slice(0,max);}
 function publicUser(u:any){return {id:u.id,role:u.role,name:u.name,email:u.email,birthDate:u.birth_date,phone:u.phone,specialty:u.specialty,clinic:u.clinic,bio:u.bio,contactEmail:u.contact_email,schedule:u.schedule,isDemo:!!u.demo_group};}
 function doctorProfile(u:any){return {id:u.id,name:u.name,specialty:u.specialty,clinic:u.clinic,bio:u.bio,phone:u.phone,contactEmail:u.contact_email,schedule:u.schedule};}
@@ -54,6 +56,7 @@ async function handle(req:Request){
   const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);return respond({doctor:doctorProfile(d),expires:inv.expires});
  }
  const u=await current(req);
+ const careResponse=await careToolsApi(req,path,u,db());if(careResponse)return careResponse;
  const syncResponse=await shortcutManagement(req,path,u,db());if(syncResponse)return syncResponse;
  const healthResponse=await healthApi(req,path,u,db());if(healthResponse)return healthResponse;
  const diaryResponse=await dailyDiaryApi(req,path,u,db());if(diaryResponse)return diaryResponse;
@@ -74,10 +77,11 @@ async function handle(req:Request){
     if(!Number.isInteger(mood)||mood<1||mood>5)fail(400,'Выберите настроение от 1 до 5');
     if(!Array.isArray(b.emotions)||b.emotions.length>3||b.emotions.some((x:any)=>!EMOTIONS.includes(x))||new Set(b.emotions).size!==b.emotions.length)fail(400,'Выберите до трёх чувств из списка');
     if(typeof b.note!=='string'||b.note.length>3000)fail(400,'Запись должна быть не длиннее 3000 символов');
+    let reflections;try{reflections=validateReflections(b.reflections);}catch(e){fail(400,(e as Error).message);}
     if(typeof b.shareWithDoctor!=='boolean')fail(400,'Укажите видимость записи');
     let doctorId=null;if(b.shareWithDoctor){const connection=await row('SELECT doctor_id FROM patient_records WHERE patient_id=?',u.id);if(!connection)fail(409,'Для публикации записи сначала подключитесь к врачу');doctorId=connection.doctor_id;}
     await throttle(req,'journal',u.id,60);
-    await run('INSERT INTO mood_entries(id,patient_id,mood,emotions,note,shared_doctor_id,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',id,u.id,mood,JSON.stringify(b.emotions),b.note.trim(),doctorId,Date.now());
+    await run('INSERT INTO mood_entries(id,patient_id,mood,emotions,note,reflections_json,shared_doctor_id,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',id,u.id,mood,JSON.stringify(b.emotions),b.note.trim(),JSON.stringify(reflections),doctorId,Date.now());
     const saved=await row('SELECT * FROM mood_entries WHERE id=? AND patient_id=?',id,u.id);if(!saved)fail(409,'Не удалось сохранить запись. Обновите страницу и повторите.');
     return respond({entry:entryView(saved)});
    }

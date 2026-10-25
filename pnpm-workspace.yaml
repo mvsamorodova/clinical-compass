@@ -3,3 +3,5 @@ allowBuilds:
   workerd: true
   sharp: true
   unrs-resolver: true
+  onnxruntime-node: false
+  protobufjs: false

@@ -50,6 +50,20 @@
       "when": 1792668422182,
       "tag": "0006_good_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792926928134,
+      "tag": "0007_mood_reflections",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792927175451,
+      "tag": "0008_safety_and_recovery",
+      "breakpoints": true
     }
   ]
 }

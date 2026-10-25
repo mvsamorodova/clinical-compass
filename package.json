@@ -8,8 +8,8 @@
   },
   "packageManager": "pnpm@11.25.0",
   "scripts": {
-    "dev": "node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
-    "build": "node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build",
+    "dev": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
+    "build": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build",
     "preview": "node --import ./scripts/runtime.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 8787 --inspector-port 0",
     "check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
@@ -21,6 +21,7 @@
     "test:assessments": "node tests/assessments.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@mlc-ai/web-llm": "0.2.86",
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
