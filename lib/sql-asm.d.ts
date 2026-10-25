@@ -1,0 +1,1 @@
+declare module 'sql.js/dist/sql-wasm-inline.js' {const init:()=>Promise<{Database:new(bytes:Uint8Array)=>{exec:(sql:string)=>{columns:string[];values:unknown[][]}[];close:()=>void}}>;export default init;}
