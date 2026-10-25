@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 export const users = sqliteTable('users', {
  id:text('id').primaryKey(), email:text('email').notNull().unique(), password:text('password').notNull(), role:text('role').notNull(), name:text('name').notNull(), birthDate:text('birth_date').notNull().default(''), phone:text('phone').notNull().default(''), specialty:text('specialty').notNull().default(''), clinic:text('clinic').notNull().default(''), bio:text('bio').notNull().default(''), contactEmail:text('contact_email').notNull().default(''), schedule:text('schedule').notNull().default(''), demoGroup:text('demo_group'), createdAt:integer('created_at').notNull()
 });
@@ -14,3 +14,23 @@ export const moodEntries = sqliteTable('mood_entries', {
 export const chatTurns = sqliteTable('chat_turns', {
  id:integer('id').primaryKey({autoIncrement:true}), requestId:text('request_id').notNull().unique(), patientId:text('patient_id').notNull().references(()=>users.id), message:text('message').notNull(), reply:text('reply').notNull(), kind:text('kind').notNull().default('llm'), createdAt:integer('created_at').notNull()
 },t=>[index('chat_by_patient').on(t.patientId,t.id)]);
+
+export const testAssignments = sqliteTable('test_assignments', {
+ id:text('id').primaryKey(), patientId:text('patient_id').notNull().references(()=>users.id), doctorId:text('doctor_id').notNull().references(()=>users.id), testKey:text('test_key').notNull(), testVersion:text('test_version').notNull(), status:text('status').notNull().default('active'), intervalDays:integer('interval_days').notNull().default(7), nextDueAt:integer('next_due_at').notNull(), createdAt:integer('created_at').notNull(), updatedAt:integer('updated_at').notNull()
+},t=>[uniqueIndex('assignment_per_patient_doctor_test').on(t.patientId,t.doctorId,t.testKey)]);
+export const testResults = sqliteTable('test_results', {
+ id:text('id').primaryKey(), assignmentId:text('assignment_id').notNull().references(()=>testAssignments.id), cycleDueAt:integer('cycle_due_at').notNull(), submittedAt:integer('submitted_at').notNull(), testVersion:text('test_version').notNull(), answers:text('answers').notNull(), depression:integer('depression').notNull(), anxiety:integer('anxiety').notNull(), stress:integer('stress').notNull(), scoresJson:text('scores_json'), intervalDays:integer('interval_days').notNull().default(7),recordedBy:text('recorded_by').references(()=>users.id),entryMode:text('entry_mode').notNull().default('patient')
+},t=>[uniqueIndex('one_result_per_due_cycle').on(t.assignmentId,t.cycleDueAt),index('results_by_assignment').on(t.assignmentId,t.submittedAt)]);
+
+export const healthDays = sqliteTable('health_days', {
+ patientId:text('patient_id').notNull().references(()=>users.id),provider:text('provider').notNull(),day:text('day').notNull(),steps:integer('steps'),sleepMinutes:integer('sleep_minutes'),activeMinutes:integer('active_minutes'),stepsSource:text('steps_source').notNull().default(''),sleepSource:text('sleep_source').notNull().default(''),activitySource:text('activity_source').notNull().default(''),updatedAt:integer('updated_at').notNull()
+},t=>[uniqueIndex('health_day_per_patient_source').on(t.patientId,t.provider,t.day)]);
+export const healthSharing = sqliteTable('health_sharing',{patientId:text('patient_id').primaryKey().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id)});
+
+export const diaryPlans=sqliteTable('diary_plans',{patientId:text('patient_id').primaryKey().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),blocksJson:text('blocks_json').notNull(),revision:text('revision').notNull(),updatedAt:integer('updated_at').notNull()});
+export const dailyDiaryEntries=sqliteTable('daily_diary_entries',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),day:text('day').notNull(),timeZone:text('time_zone').notNull(),version:text('version').notNull(),planRevision:text('plan_revision').notNull(),blocksJson:text('blocks_json').notNull(),answersJson:text('answers_json').notNull(),sharedDoctorId:text('shared_doctor_id').references(()=>users.id),createdAt:integer('created_at').notNull()},t=>[uniqueIndex('daily_diary_per_patient_day').on(t.patientId,t.day)]);
+
+// A short-lived write-only capability. Only daily aggregates are retained for review.
+export const healthSyncRequests = sqliteTable('health_sync_requests', {
+ id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),tokenHash:text('token_hash').notNull().unique(),createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),receivedAt:integer('received_at'),previewJson:text('preview_json')
+},t=>[index('health_sync_by_patient').on(t.patientId)]);
