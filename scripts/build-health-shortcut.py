@@ -11,8 +11,8 @@ import plistlib
 import uuid
 
 ROOT=Path(__file__).resolve().parents[1]
-ORIGIN='https://clinical-compass-v2.navyelk1024.chatgpt.site'
-NAME='Компас — здоровье'
+ORIGIN='https://clinical-compass-v3.feyzebra.chatgpt.site'
+NAME='Компас v3 — здоровье'
 actions=[]
 def token(value): return {'Value':value,'WFSerializationType':'WFTextTokenAttachment'}
 def text(value):

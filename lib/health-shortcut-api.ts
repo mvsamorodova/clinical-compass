@@ -18,7 +18,7 @@ export async function shortcutUpload(req:Request,path:string[],db:D1Database):Pr
  const hash=await digest(b.token),now=Date.now();
  const ticket=await db.prepare('SELECT h.*,u.name FROM health_sync_requests h JOIN users u ON u.id=h.patient_id WHERE h.token_hash=? AND h.expires_at>?').bind(hash,now).first<any>();
  if(!ticket||ticket.received_at)fail(410,'Код истёк или уже использован. Запустите обновление из кабинета снова.');
- if(path[1]==='verify')return json({state:'ready',message:'Кабинет пациента: '+ticket.name+'. Сон, шаги и упражнения будут отправлены на clinical-compass-v2.navyelk1024.chatgpt.site для предпросмотра. Продолжайте только если это ваш кабинет. Исходные записи не сохраняются: остаются суточные итоги. Доступ врачу включается отдельно.'});
+ if(path[1]==='verify')return json({state:'ready',message:'Кабинет пациента: '+ticket.name+'. Сон, шаги и упражнения будут отправлены на clinical-compass-v3.feyzebra.chatgpt.site для предпросмотра. Продолжайте только если это ваш кабинет. Исходные записи не сохраняются: остаются суточные итоги. Доступ врачу включается отдельно.'});
  let preview;try{preview=normalizeShortcut(b,now);}catch(e){fail(400,(e as Error).message);}
  const result=await db.prepare('UPDATE health_sync_requests SET received_at=?,preview_json=? WHERE token_hash=? AND received_at IS NULL AND expires_at>?').bind(now,JSON.stringify(preview),hash,now).run();
  if(!result.meta.changes)fail(410,'Код уже использован. Откройте кабинет.');

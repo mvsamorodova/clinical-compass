@@ -4,8 +4,10 @@ import { Smartphone, Download, RefreshCw, ArrowUpRight, Check, FileUp } from 'lu
 import { useSession } from '../../lib/session';
 import type { HealthPreview } from '../../lib/health-import';
 
-const NAME = 'Компас — здоровье';
-const DESTINATION = 'clinical-compass-v2.navyelk1024.chatgpt.site';
+const NAME = 'Компас v3 — здоровье';
+const DESTINATION = 'clinical-compass-v3.feyzebra.chatgpt.site';
+// Enable only after publishing a signed v3 shortcut and verifying native access.
+const SHORTCUT_AVAILABLE = false;
 
 export function HealthConnection({onPreview}: {onPreview: (preview: HealthPreview, id: string) => void}) {
  const {api, user} = useSession();
@@ -40,6 +42,7 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
   return () => clearInterval(timer);
  }, [state, refresh]);
  async function prepare() {
+  if (!SHORTCUT_AVAILABLE) return;
   setBusy(true);
   setError('');
   try {
@@ -53,9 +56,11 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
 
  return <section className="panel health-panel shortcut-panel" aria-labelledby="shortcut-title">
   <div className="tests-heading">
-   <div><span className="eyebrow">APPLE «ЗДОРОВЬЕ» · IPHONE</span><h2 id="shortcut-title">Подключим сон и активность</h2><p>Разовая настройка — затем обновление из этого кабинета.</p></div>
+   <div><span className="eyebrow">APPLE «ЗДОРОВЬЕ» · IPHONE</span><h2 id="shortcut-title">Подключим сон и активность</h2><p>Сон, шаги и активность из приложения «Здоровье».</p></div>
    <Smartphone size={30} aria-hidden="true"/>
   </div>
+  {!SHORTCUT_AVAILABLE && <div className="shortcut-before"><strong>В v3 пока доступен импорт архива</strong><p>Команда для iPhone ещё готовится. Данные можно перенести из экспорта приложения «Здоровье» — с проверкой перед сохранением.</p><a className="secondary" href="#health-file-import"><FileUp size={17} aria-hidden="true"/>Загрузить архив «Здоровья»</a></div>}
+  <details open={SHORTCUT_AVAILABLE}><summary>{SHORTCUT_AVAILABLE ? 'Подключение через «Команды»' : 'Как подключение через «Команды» будет работать'}</summary>
   <p>Часы сначала передают показатели в приложение «Здоровье» на iPhone. Команда Apple переносит сон, шаги и минуты упражнений сюда. Вы проверяете их перед сохранением.</p>
   <div className="shortcut-before"><strong>Перед началом</strong><p>Откройте «Здоровье» и убедитесь, что там есть нужные записи. Если данных о сне нет, команда не сможет их добавить. Для подключения откройте этот сайт в Safari на iPhone и войдите в свой кабинет.</p></div>
   <a className="shortcut-skip" href="#shortcut-launch">Команда уже установлена? Перейти к запуску →</a>
@@ -63,8 +68,8 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
    <li>
     <div className="shortcut-step-title"><span aria-hidden="true">1</span><div><small>ТОЛЬКО ПРИ ПЕРВОМ ПОДКЛЮЧЕНИИ</small><h3>Добавьте готовую команду</h3></div></div>
     <p>Скачайте файл на iPhone. В Safari откройте загрузки, затем файл «{NAME}.shortcut». Нажмите «Добавить быструю команду» в приложении «Команды».</p>
-    <a className="secondary" href={'/shortcuts/' + encodeURIComponent(NAME) + '.shortcut'} download={NAME + '.shortcut'}><Download size={17} aria-hidden="true"/>Скачать команду для iPhone</a>
-    <p className="health-note">Если файл сохранился в «Файлы», откройте его там. Если доступно действие «Поделиться» → «Команды», можно использовать его. Оставьте имя «{NAME}». Если команда уже добавлена, переходите к шагу 2.</p>
+    {SHORTCUT_AVAILABLE ? <a className="secondary" href={'/shortcuts/' + encodeURIComponent(NAME) + '.shortcut'} download={NAME + '.shortcut'}><Download size={17} aria-hidden="true"/>Скачать команду для iPhone</a> : <p className="health-note">Файл команды v3 пока недоступен для установки.</p>}
+    <p className="health-note">Если файл сохранился в «Файлы», откройте его там. Если доступно действие «Поделиться» → «Команды», можно использовать его. Для v3 нужна именно команда «{NAME}»: команда от предыдущей версии отправляет данные на другой сайт. Оставьте это имя. Если команда уже добавлена, переходите к шагу 2.</p>
    </li>
    <li id="shortcut-launch" tabIndex={-1}>
     <div className="shortcut-step-title"><span aria-hidden="true">2</span><div><small>ПРИ КАЖДОМ ОБНОВЛЕНИИ</small><h3>Запустите из своего кабинета</h3></div></div>
@@ -72,7 +77,7 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
     <p className="health-note">Запускайте команду именно отсюда: сайт передаст ей одноразовый код для кабинета <strong>{user?.name}</strong>. Вводить или копировать код вручную не нужно.</p>
     {!iphone && <p className="shortcut-device-note">Сейчас сайт открыт не на iPhone. Выполните эти действия на телефоне. Для Android и для загрузки файла доступен <a href="#health-file-import">импорт архива ниже</a>.</p>}
     <div className="health-import-actions">
-     <button className="primary" disabled={busy} onClick={prepare}><RefreshCw size={17} aria-hidden="true"/>{busy ? 'Подготавливаем…' : 'Получить данные с iPhone'}</button>
+     <button className="primary" disabled={busy || !SHORTCUT_AVAILABLE} onClick={prepare}><RefreshCw size={17} aria-hidden="true"/>{busy ? 'Подготавливаем…' : 'Получить данные с iPhone'}</button>
      {canLaunch && <a className="secondary" href={launch.url}><ArrowUpRight size={17} aria-hidden="true"/>Открыть команду</a>}
     </div>
     {error && <p className="error-banner" role="alert">{error}</p>}
@@ -105,10 +110,12 @@ export function HealthConnection({onPreview}: {onPreview: (preview: HealthPrevie
     <dt>Вместо запуска открылся редактор с действиями</dt><dd>На первом экране установки нажмите «Добавить быструю команду». Если команда уже в вашей коллекции, вернитесь на сайт и запустите её через шаг 2. Если во время запуска требуется выбрать неизвестный параметр, отмените запуск: не меняйте настройки наугад, используйте импорт архива.</dd>
     <dt>Команда не найдена или просит одноразовый код</dt><dd>Проверьте, что она добавлена под именем «{NAME}». Вернитесь в кабинет пациента и снова нажмите «Получить данные с iPhone», затем «Открыть команду».</dd>
     <dt>Есть шаги, но нет сна или активности</dt><dd>Проверьте записи за нужные дни в «Здоровье» и разрешение команды на чтение этих показателей. Не все устройства записывают все три показателя. «Нет данных» не означает ноль.</dd>
+    <dt>Команда показывает вход в ChatGPT вместо данных</dt><dd>Доступ к сайту ограничен владельцем. В таком режиме используйте импорт архива ниже: вход в Safari не передаётся приложению «Команды».</dd>
     <dt>На сайте всё ещё «Ожидаем данные»</dt><dd>Дождитесь окончания команды и вернитесь в Safari с интернетом. Если вы отменили запуск или получили ошибку, запустите обновление заново. Новый запуск заменяет предыдущий код.</dd>
    </dl>
   </details>
-  <a className="shortcut-fallback" href="#health-file-import"><FileUp size={18} aria-hidden="true"/><span>Не получается через «Команды»? Загрузить архив «Здоровья»</span></a>
   <p className="health-note">Обновление запускается вручную. Передаются только записи сна, шагов и упражнений за последние 8 суток для расчёта 7 календарных дней. На сервере остаются суточные итоги по источникам. Предпросмотр доступен около часа. Доступ врачу включается отдельно.</p>
+  </details>
+  <a className="shortcut-fallback" href="#health-file-import"><FileUp size={18} aria-hidden="true"/><span>Не получается через «Команды»? Загрузить архив «Здоровья»</span></a>
  </section>;
 }
