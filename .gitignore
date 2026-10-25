@@ -21,3 +21,5 @@ coverage/
 outputs/
 
 public/speech-runtime/
+
+public/models/**/weights-*.bin

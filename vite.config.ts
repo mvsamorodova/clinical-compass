@@ -5,6 +5,8 @@ import { cloudflare } from '@cloudflare/vite-plugin';
 
 export default defineConfig({
   server: { host: '127.0.0.1' },
+  // The source audio frontend imports both runtimes. Browser workers need only Web.
+  resolve: { alias: { 'onnxruntime-node': 'onnxruntime-web' } },
   plugins: [
     vinext(),
     sites({ mockAuth: false }),

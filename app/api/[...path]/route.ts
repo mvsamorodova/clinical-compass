@@ -1,3 +1,4 @@
+import {voiceApi} from '../../../lib/voice-api';
 import {careToolsApi} from '../../../lib/care-tools-api';
 import {validateReflections} from '../../../lib/reflection';
 import { healthApi, HealthError } from '../../../lib/health-api';
@@ -56,6 +57,7 @@ async function handle(req:Request){
   const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);return respond({doctor:doctorProfile(d),expires:inv.expires});
  }
  const u=await current(req);
+ const voiceResponse=await voiceApi(req,path,u,db(),env.BUCKET);if(voiceResponse)return voiceResponse;
  const careResponse=await careToolsApi(req,path,u,db());if(careResponse)return careResponse;
  const syncResponse=await shortcutManagement(req,path,u,db());if(syncResponse)return syncResponse;
  const healthResponse=await healthApi(req,path,u,db());if(healthResponse)return healthResponse;
@@ -90,20 +92,21 @@ async function handle(req:Request){
   if(path[0]==='chat'){
    if(method==='GET'&&!path[1]){
     const before=Number(url.searchParams.get('before')||Number.MAX_SAFE_INTEGER);if(!Number.isSafeInteger(before)||before<=0)fail(400,'Некорректная страница');
-    const turns=await all('SELECT id,request_id AS requestId,message,reply,kind,created_at AS createdAt FROM chat_turns WHERE patient_id=? AND id<? ORDER BY id DESC LIMIT 21',u.id,before);
+    const turns=await all('SELECT id,request_id AS requestId,message,reply,kind,voice_id AS voiceId,created_at AS createdAt FROM chat_turns WHERE patient_id=? AND id<? ORDER BY id DESC LIMIT 21',u.id,before);
     return respond({engine:'webllm-qwen3-1.7b',turns:turns.slice(0,20).reverse(),hasMore:turns.length>20});
    }
    if(method==='POST'&&!path[1]){
     const b=await body(req),id=requestId(b.requestId);
-    const select='SELECT id,request_id AS requestId,message,reply,kind,created_at AS createdAt FROM chat_turns WHERE request_id=? AND patient_id=?';
+    const select='SELECT id,request_id AS requestId,message,reply,kind,voice_id AS voiceId,created_at AS createdAt FROM chat_turns WHERE request_id=? AND patient_id=?';
     const existing=await row(select,id,u.id);if(existing)return respond({engine:'webllm-qwen3-1.7b',turn:existing});
     if(typeof b.message!=='string'||!b.message.trim()||b.message.length>3000)fail(400,'Введите сообщение от 1 до 3000 символов');
+    let voiceId=null;if(b.voiceId!=null){voiceId=requestId(b.voiceId);if(!await row('SELECT id FROM voice_notes WHERE id=? AND patient_id=?',voiceId,u.id))fail(404,'Голосовая запись не найдена');}
     await throttle(req,'chat',u.id,60);
     // The client runs the model locally. Stored text is private, untrusted user-owned content.
     const notice=safetyNotice(b.message);
     if(!notice&&(typeof b.reply!=='string'||!b.reply.trim()||b.reply.length>6000))fail(400,'Ожидается ответ локальной модели от 1 до 6000 символов');
     const reply={text:notice||b.reply.trim(),kind:notice?'safety':'llm'};
-    await run('INSERT INTO chat_turns(request_id,patient_id,message,reply,kind,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(request_id) DO NOTHING',id,u.id,b.message.trim(),reply.text,reply.kind,Date.now());
+    await run('INSERT INTO chat_turns(request_id,patient_id,message,reply,kind,voice_id,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(request_id) DO NOTHING',id,u.id,b.message.trim(),reply.text,reply.kind,voiceId,Date.now());
     const saved=await row(select,id,u.id);if(!saved)fail(409,'Не удалось сохранить сообщение. Попробуйте ещё раз.');
     return respond({engine:'webllm-qwen3-1.7b',turn:saved});
    }
@@ -145,5 +148,9 @@ async function handle(req:Request){
  }
  fail(404,'Страница не найдена');
 }
-async function route(req:Request){try{return await handle(req);}catch(e){if(e instanceof HealthError)return respond({error:e.message},e.status);if(e instanceof AssessmentError)return respond({error:e.message},e.status);if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
+async function route(req:Request){try{return await handle(req);}catch(e){
+ // Consume rejected voice uploads as a stream, including auth/CSRF failures,
+ // so the Worker can finish this request without breaking the next connection.
+ if(new URL(req.url).pathname.startsWith('/api/voice/')&&req.body&&!req.bodyUsed){try{const reader=req.body.getReader();while(!(await reader.read()).done){}reader.releaseLock();}catch{}}
+if(e instanceof HealthError)return respond({error:e.message},e.status);if(e instanceof AssessmentError)return respond({error:e.message},e.status);if(e instanceof ApiError)return respond({error:e.message,...(e.code?{code:e.code}:{})},e.status);console.error('API request failed',e instanceof Error?e.name:'unknown');return respond({error:'Не удалось выполнить действие. Попробуйте ещё раз.'},500);}}
 export {route as GET,route as POST,route as PUT,route as PATCH,route as DELETE};

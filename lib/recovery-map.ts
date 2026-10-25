@@ -1,4 +1,4 @@
-export type MapStatus='available'|'in_progress'|'completed';
+export type MapStatus='locked'|'available'|'in_progress'|'completed';
 export type MapRecord={node_key:string;status:string;answer:string;updated_at:number};
 export const MAP_NODES=[
  {key:'roots',title:'Моя точка опоры',subtitle:'Начать с того, что есть',branch:'root',lesson:'Эта карта — пространство для знакомства с собой. Можно идти небольшими шагами и возвращаться к пройденному. Завершение карты не означает окончания лечения.',story:'Лена решила начать с одной фразы: «Хочу лучше понимать, когда мне нужна поддержка». Ей не понадобился большой план.',question:'Что сейчас могло бы стать для вас небольшой опорой?',task:'Запишите одну важную для себя вещь, человека или привычное занятие.',feedback:'Вы обозначили свою отправную точку. К ней можно возвращаться.'},
@@ -9,6 +9,22 @@ export const MAP_NODES=[
  {key:'support',title:'Люди рядом',subtitle:'Просить о поддержке',branch:'root',lesson:'Поддержка может быть разной: совместная прогулка, разговор, помощь с обычным делом. Иногда человеку рядом проще помочь, когда просьба конкретна.',story:'Олег написал другу: «Мне непросто. Можем немного пройтись без обсуждения проблем?» Он выбрал понятную для себя просьбу.',question:'Какую просьбу вам было бы удобно сформулировать?',task:'Запишите слова для близкого или вопрос к врачу. Отправлять их из карты не требуется.',feedback:'Просьба о поддержке может быть маленькой. Вы сами решаете, кому и когда её адресовать.'},
  {key:'horizon',title:'Мой следующий шаг',subtitle:'Продолжать в своём темпе',branch:'root',lesson:'Карта не заканчивает вашу историю. Можно возвращаться к полезным модулям, делиться наблюдениями с врачом и менять темп. Неровный путь не обесценивает сделанное.',story:'Лена вернулась к первой записи и увидела, что научилась чуть раньше замечать усталость. Для следующей встречи она выбрала один вопрос.',question:'Что из этой карты хочется взять с собой?',task:'Запишите полезное наблюдение или вопрос к следующей встрече. Истории поддержки доступны в любой момент.',feedback:'Ваши наблюдения сохранены. Дальнейший путь и лечение вы обсуждаете с врачом.'},
 ];
-export function mapStates(records:MapRecord[]){
- return MAP_NODES.map(node=>{const record=records.find(r=>r.node_key===node.key);const status:MapStatus=record?.status==='completed'?'completed':record?.status==='in_progress'?'in_progress':'available';return {...node,status,answer:record?.answer??'',updatedAt:record?.updated_at??null};});
+export type MapReadiness={hasDiary:boolean;trackedDays:number;branch:string|null};
+export function mapStates(records:MapRecord[],readiness:MapReadiness={hasDiary:false,trackedDays:0,branch:null}){
+ const completed=(key:string)=>records.some(r=>r.node_key===key&&r.status==='completed');
+ const observed=readiness.hasDiary||readiness.trackedDays>=3;
+ const branchDone=completed('body')||completed('thoughts');
+ return MAP_NODES.map(node=>{
+  const record=records.find(r=>r.node_key===node.key);
+  let available=false,unlockHint='';
+  if(node.key==='roots')available=true;
+  if(node.key==='understand'){available=completed('roots')&&observed;unlockHint=!completed('roots')?'Сначала завершите «Моя точка опоры».':'Добавьте одну запись в дневник или данные сна и активности за 3 разных дня.';}
+  if(node.branch==='body'||node.branch==='thoughts'){available=completed('understand')&&(readiness.branch===node.branch||branchDone);unlockHint=!completed('understand')?'Сначала завершите «Понять своё состояние».':'Выберите эту тропу ниже. Выбор можно изменить.';}
+  if(node.key==='small-step'){available=branchDone;unlockHint='Завершите модуль на любой из двух троп.';}
+  if(node.key==='support'){available=completed('small-step');unlockHint='Сначала завершите «Один небольшой шаг».';}
+  if(node.key==='horizon'){available=completed('support');unlockHint='Сначала завершите «Люди рядом». Видео доступны уже сейчас.';}
+  // Existing completed/started modules retain the patient's saved progress.
+  const status:MapStatus=record?.status==='completed'?'completed':record?.status==='in_progress'?'in_progress':available?'available':'locked';
+  return {...node,status,unlockHint:status==='locked'?unlockHint:'',answer:record?.answer??'',updatedAt:record?.updated_at??null};
+ });
 }

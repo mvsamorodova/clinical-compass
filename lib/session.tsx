@@ -15,13 +15,14 @@ class ApiError extends Error {
 }
 
 async function request(path: string, method = 'GET', data?: unknown, userId?: string) {
+  const binary=typeof Blob!=='undefined' && data instanceof Blob;
   const response = await fetch('/api/' + path, {
     method, credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(20000),
     headers: {
-      ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(data === undefined ? {} : { 'Content-Type': binary ? data.type : 'application/json' }),
       ...(userId ? { 'X-Compass-User': userId } : {}),
     },
-    body: data === undefined ? undefined : JSON.stringify(data),
+    body: data === undefined ? undefined : binary ? data : JSON.stringify(data),
   });
   const result: any = await response.json();
   if (!response.ok) throw new ApiError(response.status, result.error || 'Не удалось выполнить действие. Попробуйте ещё раз.', result.code);

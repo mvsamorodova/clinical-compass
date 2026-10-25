@@ -7,6 +7,7 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "r2_buckets": [{"binding":"BUCKET","bucket_name":"clinical-compass-voice"}],
   "d1_databases": [
     {
       "binding": "DB",
