@@ -31,7 +31,7 @@ async function throttle(req:Request,kind:string,key:string,limit=10){const id=aw
 async function handle(req:Request){
  const url=new URL(req.url), path=url.pathname.replace(/^\/api\/?/,'').split('/').filter(Boolean), method=req.method;
  if(method!=='GET'){const origin=req.headers.get('origin');if(origin && origin!==url.origin)fail(403,'Запрос с другого сайта запрещён');if(req.headers.get('sec-fetch-site')==='cross-site')fail(403,'Запрос с другого сайта запрещён');}
- const modelResponse=await modelAssetsApi(req,path,env.BUCKET,env.MODEL_ASSET_UPLOAD_KEY);if(modelResponse)return modelResponse;
+ const modelResponse=await modelAssetsApi(req,path,env.BUCKET);if(modelResponse)return modelResponse;
  const shortcutResponse=await shortcutUpload(req,path,db());if(shortcutResponse)return shortcutResponse;
  if(path[0]==='auth' && method==='POST'){
   const b=await body(req);
