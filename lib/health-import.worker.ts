@@ -1,5 +1,5 @@
-import { parseHealthFile } from './health-import';
-self.onmessage=async(event:MessageEvent<{bytes:ArrayBuffer;name:string}>)=>{
- try{self.postMessage({preview:await parseHealthFile(new Uint8Array(event.data.bytes),event.data.name)});}
- catch(e){self.postMessage({error:e instanceof Error?e.message:'Не удалось прочитать файл'});}
+import { parseHealthExportFile } from './health-import';
+self.onmessage=async(event:MessageEvent<{file:File}>)=>{
+ try{self.postMessage({preview:await parseHealthExportFile(event.data.file)});}
+ catch(e){self.postMessage({error:e instanceof RangeError?'Для этой выгрузки не хватает памяти на устройстве. Попробуйте импорт на компьютере.':e instanceof Error?e.message:'Не удалось прочитать файл'});}
 };
