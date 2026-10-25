@@ -23,5 +23,3 @@ outputs/
 public/speech-runtime/
 
 public/models/**/weights-*.bin
-
-/public/api/model-assets/
