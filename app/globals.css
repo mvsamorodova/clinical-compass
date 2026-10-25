@@ -26,3 +26,36 @@
 .schedule-picker{display:flex;flex-direction:column;gap:8px;font-size:13px;color:#54705e;margin:8px 0 18px}.schedule-picker select,.custom-schedule input{padding:11px;border:1px solid #dce6dc;border-radius:9px;background:#fff;color:#2b493a;font:inherit}.custom-schedule{display:flex;align-items:center;gap:8px}.custom-schedule input{width:85px}.assignment-schedule{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-top:12px}.assignment-schedule .schedule-picker{margin:0}.assignment-schedule small{flex-basis:100%;color:#7b8983;line-height:1.6}.health-panel{padding:28px;margin-bottom:28px}.health-note{font-size:13px;color:#738276;line-height:1.8}.health-instructions{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:22px 0}.health-instructions details{padding:18px;border:1px solid #dce6dc;border-radius:12px;font-size:14px;line-height:1.8}.health-instructions summary{font-weight:600;color:#355e45;cursor:pointer}.health-instructions a{color:#3d7359}.health-file{display:flex;flex-direction:column;gap:12px;padding:22px;background:#f1f6ee;border:1px dashed #a5bda5;border-radius:12px;font-weight:600}.health-file input{font:inherit;font-size:14px;max-width:100%}.health-preview{margin-top:24px;border-top:1px solid #dce6dc;padding-top:18px}.health-selectors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}.health-selectors .field{margin:0}.health-selectors select{min-width:0;width:100%}.health-table{width:100%;min-width:520px}.health-table small{display:block;max-width:190px;overflow-wrap:anywhere;font-size:11px;color:#7d8a80;margin-top:5px}.health-import-actions,.health-source-tabs{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;align-items:center}.health-warning{background:#fff6e9;color:#866137;padding:12px 16px;border-radius:8px;font-size:13px;line-height:1.7}.health-private{display:flex;gap:12px;align-items:center;color:#768779;padding:20px 0}.health-trends{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:24px 0}.health-trend{background:#f6f8f4;border-radius:12px;padding:18px}.health-trend h3{font-size:15px;margin:0 0 20px}.health-trend p{font-size:12px;color:#819080}.health-bars{height:105px;display:flex;gap:7px;align-items:flex-end;padding-bottom:20px}.health-bars>div{height:100%;flex:1;display:flex;align-items:center;justify-content:flex-end;flex-direction:column;position:relative}.health-bars i{width:100%;max-width:28px;background:#8caa8c;border-radius:5px 5px 0 0;display:block}.health-bars i.missing{background:#d9dfd5}.health-bars small{position:absolute;bottom:-20px;font-size:10px;color:#7c8b7d}@media(max-width:800px){.health-instructions,.health-trends{grid-template-columns:1fr}.health-selectors{grid-template-columns:1fr 1fr}.health-panel{padding:20px}}@media(max-width:500px){.health-selectors{grid-template-columns:1fr}.health-source-tabs button{font-size:12px}}
 
 .shortcut-panel{border-color:#b9d0c0;background:linear-gradient(120deg,#f4f8f1,#fff 72%)}.shortcut-panel>p{line-height:1.8;max-width:760px}.shortcut-setup{margin:22px 0;padding:18px 20px;border:1px solid #dae5d9;border-radius:12px;background:#fff}.shortcut-setup summary{font-weight:600;color:#355e45;cursor:pointer}.shortcut-setup ol{padding-left:22px;list-style:decimal;line-height:1.8;margin:14px 0 18px}.shortcut-setup li{padding:5px 0}.shortcut-setup .health-note{margin-top:12px}.shortcut-panel a{text-decoration:none}.shortcut-panel .health-import-actions{align-items:stretch}@media(max-width:500px){.shortcut-setup{padding:15px}.shortcut-panel .primary,.shortcut-panel .secondary{white-space:normal;text-align:center;max-width:100%}.shortcut-panel .health-import-actions>*{width:100%}}
+
+/* Guided Apple Health connection */
+.shortcut-before{background:#edf3e8;border-radius:12px;padding:16px 20px;margin:22px 0 14px;color:#365b44;font-size:14px;line-height:1.75}
+.shortcut-before p{margin:5px 0 0}
+.shortcut-skip{display:inline-block;color:#355f49;font-size:14px;margin:0 0 20px;padding:8px 0;text-decoration:underline!important;text-underline-offset:4px}
+.shortcut-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));list-style:none;padding:0;margin:0;gap:18px}
+.shortcut-steps>li{min-width:0;background:#fff;border:1px solid #dce6d9;border-radius:14px;padding:22px;scroll-margin-top:28px}
+.shortcut-step-title{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.shortcut-step-title>span{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border-radius:50%;background:#e9f0e4;color:#3d6748;font-size:14px;font-weight:600}
+.shortcut-step-title small{display:block;color:#587461;font-size:10px;line-height:1.5;letter-spacing:.07em;margin-bottom:5px}
+.shortcut-step-title h3{font-size:18px;line-height:1.45;margin:0;color:#2e513d}
+.shortcut-steps p,.shortcut-permissions{font-size:14px;line-height:1.8;color:#4d6656;margin:12px 0}
+.shortcut-steps .health-note{font-size:13px;color:#607366}
+.shortcut-steps .health-import-actions{margin:18px 0 12px;gap:10px}
+.shortcut-steps .primary,.shortcut-steps .secondary{white-space:normal;text-align:center;max-width:100%;font-size:13px}
+.shortcut-permissions{list-style:disc;padding-left:20px}
+.shortcut-permissions li{padding:0 0 12px}
+.shortcut-domain{overflow-wrap:anywhere}
+.shortcut-device-note{border-left:3px solid #b9cbb0;padding-left:12px}
+.shortcut-device-note a{color:#355f49;text-decoration:underline!important}
+.shortcut-help{border-top:1px solid #dce6d9;border-bottom:1px solid #dce6d9;margin:22px 0 0;padding:18px 0;line-height:1.8}
+.shortcut-help summary{cursor:pointer;font-weight:600;color:#355e45;font-size:15px}
+.shortcut-help dl{margin:18px 0 0;font-size:14px;max-width:800px}
+.shortcut-help dt{font-weight:600;color:#3d5b47;margin-top:18px}
+.shortcut-help dd{margin:4px 0 0;color:#607366}
+.shortcut-fallback{display:flex;gap:10px;align-items:center;color:#355f49;font-size:14px;line-height:1.6;margin:20px 0;padding:12px 0;text-decoration:underline!important;text-underline-offset:4px}
+.shortcut-fallback svg{flex-shrink:0}
+.health-source-hint{font-size:12px;font-weight:400;color:#607366;line-height:1.75}
+.health-selection-status{font-size:14px;line-height:1.8;color:#3f644b;background:#f1f6ed;border-radius:10px;padding:14px 16px}
+.health-backup-import{scroll-margin-top:24px}
+.shortcut-skip:focus-visible,.shortcut-fallback:focus-visible,.shortcut-help summary:focus-visible{outline:2px solid #557d5a;outline-offset:4px;border-radius:4px}
+@media(max-width:1050px){.shortcut-steps{grid-template-columns:1fr}}
+@media(max-width:500px){.shortcut-steps>li{padding:17px}.shortcut-before{padding:15px}.shortcut-step-title h3{font-size:17px}.shortcut-step-title small{font-size:9px}.shortcut-steps .health-import-actions>*{width:100%}}
