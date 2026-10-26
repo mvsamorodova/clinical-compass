@@ -4,10 +4,10 @@
 .page-title p { margin-top: 8px; max-width: 65ch; line-height: 1.65; }
 .page-title > .primary { margin-top: 0; }
 .main-shell, .content, .content > *, .detail-grid > *, .profile-grid > * { min-width: 0; }
-.sidebar-support { display: flex; align-items: center; gap: 9px; color: #718476; font-size: 12px; padding: 24px 14px; }
+.sidebar-support { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; padding: 24px 14px; }
 .sidebar > .brand { margin-bottom: 36px; }
 .mobile-nav-toggle { display: none; }
-.patient-count { font-size: 13px; color: #687b6f; }
+.patient-count { font-size: 13px; color: var(--text); }
 .patient-panel .table-controls { gap: 14px; }
 .patient-panel .search { max-width: 460px; }
 .patient-panel .search input, .filter-select select { font-size: 13px; }
@@ -15,7 +15,7 @@
 .patient-name small, .updated > span, .open-patient { font-size: 12px; }
 .patient-panel th, .status { font-size: 11px; }
 .patient-panel .table-footer { font-size: 11px; }
-.patient-profile-group { margin: 22px 0; padding: 18px; background: #f4f6f0; }
+.patient-profile-group { margin: 22px 0; padding: 18px; background: var(--surface-tint); }
 .patient-profile-group-heading { margin-bottom: 16px; }
 .patient-profile-group-heading h2 { font-size: 19px; }
 .patient-section > summary { padding: 18px 22px; }
@@ -27,24 +27,24 @@
 .save-bar { gap: 16px; }
 .patient-record-section { margin: 24px 0; }
 .patient-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
-.quick-action { display: flex; align-items: center; gap: 12px; padding: 20px; text-align: left; color: #315b49; min-width: 0; }
+.quick-action { display: flex; align-items: center; gap: 12px; padding: 20px; text-align: left; color: var(--text); min-width: 0; }
 .quick-action strong { font-size: 14px; line-height: 1.45; flex: 1; }
 .quick-action > svg { flex-shrink: 0; }
-.quick-action:hover { border-color: #a9c0ae; background: #f8fbf5; }
-.quick-action:first-child { background: #edf4e8; border-color: #d9e5d2; }
+.quick-action:hover { border-color: var(--border-strong); background: var(--surface-soft); }
+.quick-action:first-child { background: var(--surface-tint); border-color: var(--border); }
 .quick-action .stat-icon { width: 38px; height: 38px; }
 .care-grid { gap: 18px; }
 .care-record { padding: 24px; }
 .care-record h2 { display: flex; align-items: center; gap: 10px; font-size: 18px; margin: 0; }
-.care-record h2 svg { color: #77947c; flex-shrink: 0; }
-.care-record > p { margin-top: 14px; color: #4c6453; line-height: 1.8; }
-.care-recommendations { border-color: #ccdcc6; }
+.care-record h2 svg { color: var(--muted); flex-shrink: 0; }
+.care-record > p { margin-top: 14px; color: var(--text); line-height: 1.8; }
+.care-recommendations { border-color: var(--border); }
 .patient-medications { margin-top: 18px; }
 .care-doctor { margin-top: 20px; padding: 18px 22px; }
 .care-doctor h3 { font-size: 15px; }
-.care-updated { margin: 16px 0; color: #73806f; }
+.care-updated { margin: 16px 0; color: var(--text); }
 .chat-page .page-title { align-items: center; }
-.daily-plan-empty { display: flex; gap: 8px; align-items: flex-start; color: #6f7f70; font-size: 13px; line-height: 1.65; margin: -4px 0 20px; }
+.daily-plan-empty { display: flex; gap: 8px; align-items: flex-start; color: var(--text); font-size: 13px; line-height: 1.65; margin: -4px 0 20px; }
 .daily-plan-empty svg { flex-shrink: 0; margin-top: 3px; }
 .daily-patient { padding: 22px; margin-bottom: 22px; }
 .daily-patient .tests-heading { margin-bottom: 16px; }
@@ -63,9 +63,9 @@
 .model-panel > div { min-width: 0; }
 .model-panel p { font-size: 13px; }
 .model-panel .primary { margin-top: 10px; min-height: 42px; }
-.inline-help { font-size: 12px; color: #627669; }
-.inline-help summary { cursor: pointer; color: #476c52; padding: 4px 0; }
-.model-info { padding: 8px 20px; border-bottom: 1px solid #e3e9e4; }
+.inline-help { font-size: 12px; color: var(--text); }
+.inline-help summary { cursor: pointer; color: var(--ocean); padding: 4px 0; }
+.model-info { padding: 8px 20px; border-bottom: 1px solid var(--border); }
 .inline-help p { max-width: 68ch; margin-top: 7px; }
 .journal-heading { padding-bottom: 18px; }
 .journal-heading h2 { font-size: 16px; }
@@ -78,16 +78,16 @@
 .health-backup-import { margin-top: 0; }
 .health-panel .tests-heading { margin-bottom: 16px; }
 .health-panel .health-note { max-width: 78ch; font-size: 13px; line-height: 1.7; }
-.health-backup-import .health-file { display: inline-flex; position: relative; width: auto; padding: 12px 18px; margin: 4px 0 10px; border: 1px solid var(--green); border-radius: 8px; background: var(--green); color: #fff; font-size: 14px; cursor: pointer; }
+.health-backup-import .health-file { display: inline-flex; position: relative; width: auto; padding: 12px 18px; margin: 4px 0 10px; border: 1px solid var(--ocean); border-radius: 8px; background: var(--ocean); color: #fff; font-size: 14px; cursor: pointer; }
 .health-file input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.health-file:focus-within { outline: 3px solid #a8c9b8; outline-offset: 3px; }
+.health-file:focus-within { outline: 3px solid var(--focus); outline-offset: 3px; }
 .health-file:has(input:disabled) { opacity: .55; cursor: default; }
 .health-instructions { margin: 16px 0; }
-.shortcut-unavailable { padding: 18px 22px; background: #f6f8f3; }
+.shortcut-unavailable { padding: 18px 22px; background: var(--surface-soft); }
 .shortcut-unavailable .tests-heading { margin-bottom: 8px; align-items: flex-start; }
 .shortcut-unavailable h2 { font-size: 16px; }
 .shortcut-unavailable .tests-heading p { font-size: 13px; }
-.shortcut-unavailable > details > summary { font-size: 13px; color: #536d57; cursor: pointer; }
+.shortcut-unavailable > details > summary { font-size: 13px; color: var(--ocean); cursor: pointer; }
 .health-sharing-panel .health-note { margin-bottom: 14px; }
 .health-panel .test-empty { padding: 24px 16px; }
 .catalogue-intro h3 { font-size: 18px; }
@@ -116,7 +116,7 @@
 .patient-test-card h2 { font-size: 22px; }
 .patient-test-card > p { line-height: 1.65; }
 .patient-test-card .test-schedule { margin-bottom: 20px; }
-.doctor-alerts.embedded:not(.has-alerts) { padding: 15px 18px !important; margin-top: 12px; background: #f8faf5; }
+.doctor-alerts.embedded:not(.has-alerts) { padding: 15px 18px !important; margin-top: 12px; background: var(--surface-soft); }
 .doctor-alerts.embedded:not(.has-alerts) .tests-heading { margin-bottom: 4px; }
 .doctor-alerts.embedded h3 { font-size: 15px; }
 .doctor-alerts.embedded .health-note { font-size: 12px; }
