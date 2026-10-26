@@ -1,4 +1,5 @@
 'use client';
+import {ThoughtDiary} from './ThoughtDiary';
 import {PatientSection} from './PatientSection';
 import {VoiceRecorder} from './VoiceRecorder';
 import { PatientDailyDiary } from './DailyDiary';
@@ -141,7 +142,7 @@ export default function PatientChat({ name, initialMode = 'diary' }: { name: str
   const selectedMood = MOODS.find(m => m.value === mood);
   return <section className="chat-page">
     <div className="page-title"><div><h1>Чат и дневник</h1></div><span className="chat-private-tag"><LockKeyhole size={14} /> Личное пространство</span></div>
-    {mode === 'diary' && <PatientDailyDiary/>}
+    {mode === 'diary' && <><PatientDailyDiary/><ThoughtDiary/></>}
     <div className={`chat-layout ${expanded?'chat-expanded':''}`} style={{'--chat-text-size':`${textSize}px`} as React.CSSProperties}>
       <section className="panel chat-window" aria-label="Чат пациента">
         <header className="chat-window-header"><span className="chat-header-mark"><Compass size={25} /></span><div><h2>{mode === 'diary' ? 'Новая запись' : 'ИИ-помощник'}</h2></div><div className="chat-view-controls"><button type="button" className="text-button" aria-label={expanded?'Свернуть чат':'Развернуть чат'} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?<Minimize2 size={17}/>:<Maximize2 size={17}/>}<span>{expanded?'Свернуть':'Развернуть чат'}</span></button><div className="chat-text-controls" aria-label="Размер текста"><button className="icon-button" aria-label="Уменьшить текст чата" disabled={textSize<=14} onClick={()=>setTextSize(v=>v-1)}><Minus size={14}/></button><span>Аа</span><button className="icon-button" aria-label="Увеличить текст чата" disabled={textSize>=22} onClick={()=>setTextSize(v=>v+1)}><Plus size={14}/></button></div></div></header>

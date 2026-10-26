@@ -7,6 +7,10 @@ export const STATIONS = [
  {key:'journey',title:'Мой путь',hint:'Оглянуться и заметить',landscape:'space'},
 ] as const;
 export type StationKey=typeof STATIONS[number]['key'];
+export type StandaloneStationKey=Exclude<StationKey,'diary'|'doctor'>;
+// Shared islands open the same views as the main navigation.
+export const SHARED_STATION_PAGES:Partial<Record<StationKey,string>>={diary:'chat',doctor:'doctor'};
+export const PATIENT_PAGE_PATHS:Record<string,string>={recovery:'/map',chat:'/diary',doctor:'/doctor'};
 export const ANCHOR_CATEGORIES=[
  {key:'holds',title:'Что меня держит',hint:'Человек, место, занятие — или просто картинка.'},
  {key:'people',title:'Мои люди',hint:'К кому я могу обратиться. Имя и контакт, если хочется.'},
