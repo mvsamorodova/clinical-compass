@@ -32,7 +32,7 @@ export async function recoveryApi(req:Request,path:string[],u:any,db:D1Database,
   const unread=connection?await row("SELECT COUNT(*) AS n FROM recovery_messages WHERE patient_id=? AND doctor_id=? AND sender='doctor' AND read_at IS NULL",patientId,connection.doctor_id):{n:0};
   const assignments=connection?await row("SELECT COUNT(*) AS n FROM test_assignments WHERE patient_id=? AND doctor_id=? AND status='active'",patientId,connection.doctor_id):{n:0};
   const legacy=await all("SELECT node_key AS title,answer,updated_at AS updatedAt FROM map_progress WHERE patient_id=? AND answer<>'' ORDER BY updated_at DESC",patientId);
-  return json({stations,activity,entries:entries.map(e=>({id:e.id,category:e.category,text:e.text,mediaType:e.media_type,mediaUrl:e.media_key?'/api/recovery-map/media/'+e.id:null,createdAt:e.created_at})),counts:{anchors:entries.filter(e=>ANCHOR_CATEGORIES.some(c=>c.key===e.category)).length,diaryTotal:diary.total,diaryWeek:diary.week,learned:activity.filter(a=>a.kind==='learned').length,watched:activity.filter(a=>a.kind==='watched').length,unread:unread.n,assignments:assignments.n},days:Math.max(1,Math.floor((Date.now()-u.created_at)/86400000)+1),legacy});
+  return json({stations,activity,entries:entries.map(e=>({id:e.id,category:e.category,text:e.text,mediaType:e.media_type,mediaUrl:e.media_key?'/api/recovery-map/media/'+e.id:null,createdAt:e.created_at})),counts:{anchors:entries.filter(e=>e.category==='bad-day'||ANCHOR_CATEGORIES.some(c=>c.key===e.category)).length,diaryTotal:diary.total,diaryWeek:diary.week,learned:activity.filter(a=>a.kind==='learned').length,watched:activity.filter(a=>a.kind==='watched').length,unread:unread.n,assignments:assignments.n},days:Math.max(1,Math.floor((Date.now()-u.created_at)/86400000)+1),legacy});
  }
  if(doctor)return fail(405,'Личные опоры и записи доступны только пациенту');
  if(route[0]==='activity'&&route.length===1&&req.method==='PUT'){
@@ -41,7 +41,8 @@ export async function recoveryApi(req:Request,path:string[],u:any,db:D1Database,
   if(b.active)await run('INSERT INTO recovery_activity(patient_id,kind,item_key,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING',patientId,b.kind,b.key,Date.now());else await run('DELETE FROM recovery_activity WHERE patient_id=? AND kind=? AND item_key=?',patientId,b.kind,b.key);
   return json({ok:true});
  }
- const categories=[...ANCHOR_CATEGORIES.map(c=>c.key),'reflection','thought'];
+ // Retain the former category for older clients and saved private notes.
+ const categories=[...ANCHOR_CATEGORIES.map(c=>c.key),'bad-day','reflection','thought'];
  if(route[0]==='entries'&&route.length===1&&req.method==='POST'){
   const b=await body(req);if(!uuid(b.id)||!categories.includes(b.category))fail(400,'Проверьте запись');const value=text(b.text);
   if(b.category==='people'&&b.consent!==true)fail(400,'Подтвердите сохранение контакта в личных опорах');
