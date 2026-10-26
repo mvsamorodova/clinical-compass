@@ -4,6 +4,7 @@ import {avatarApi,avatarImage} from '../../../lib/avatar-api';
 import {avatarUrl} from '../../../lib/avatars';
 import {modelAssetsApi} from '../../../lib/model-assets-api';
 import {voiceApi} from '../../../lib/voice-api';
+import {recoveryApi} from '../../../lib/recovery-api';
 import {careToolsApi} from '../../../lib/care-tools-api';
 import {validateReflections} from '../../../lib/reflection';
 import { healthApi, HealthError } from '../../../lib/health-api';
@@ -67,6 +68,7 @@ async function handle(req:Request){
  const u=await current(req);
  const avatarResponse=await avatarApi(req,path,u,db(),env.BUCKET);if(avatarResponse)return avatarResponse;
  const voiceResponse=await voiceApi(req,path,u,db(),env.BUCKET);if(voiceResponse)return voiceResponse;
+ const recoveryResponse=await recoveryApi(req,path,u,db(),env.BUCKET);if(recoveryResponse)return recoveryResponse;
  const careResponse=await careToolsApi(req,path,u,db());if(careResponse)return careResponse;
  const syncResponse=await shortcutManagement(req,path,u,db());if(syncResponse)return syncResponse;
  const healthResponse=await healthApi(req,path,u,db());if(healthResponse)return healthResponse;

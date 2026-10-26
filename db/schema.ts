@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { primaryKey, sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 export const users = sqliteTable('users', {
  id:text('id').primaryKey(), email:text('email').notNull().unique(), password:text('password').notNull(), role:text('role').notNull(), name:text('name').notNull(), birthDate:text('birth_date').notNull().default(''), phone:text('phone').notNull().default(''), specialty:text('specialty').notNull().default(''), clinic:text('clinic').notNull().default(''), bio:text('bio').notNull().default(''), contactEmail:text('contact_email').notNull().default(''), schedule:text('schedule').notNull().default(''), demoGroup:text('demo_group'), avatarKey:text('avatar_key'), socialLinks:text('social_links').notNull().default('[]'), createdAt:integer('created_at').notNull()
 });
@@ -47,3 +47,8 @@ export const voiceEmotions=sqliteTable('voice_emotions',{voiceId:text('voice_id'
 
 // Medication regimens are entered by the treating doctor and read by the linked patient.
 export const medicationOrders=sqliteTable('medication_orders',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),name:text('name').notNull(),dose:text('dose').notNull(),frequency:text('frequency').notNull(),notes:text('notes').notNull().default(''),status:text('status').notNull().default('active'),revision:integer('revision').notNull().default(1),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull()},t=>[index('medications_by_patient_doctor').on(t.patientId,t.doctorId,t.status)]);
+
+// Personal recovery notes are never exposed by the treating-doctor summary.
+export const recoveryEntries=sqliteTable('recovery_entries',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),category:text('category').notNull(),text:text('text').notNull().default(''),mediaKey:text('media_key'),mediaType:text('media_type'),createdAt:integer('created_at').notNull()},t=>[index('recovery_entries_by_patient').on(t.patientId,t.createdAt)]);
+export const recoveryActivity=sqliteTable('recovery_activity',{patientId:text('patient_id').notNull().references(()=>users.id),kind:text('kind').notNull(),itemKey:text('item_key').notNull(),createdAt:integer('created_at').notNull()},t=>[primaryKey({columns:[t.patientId,t.kind,t.itemKey]})]);
+export const recoveryMessages=sqliteTable('recovery_messages',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),sender:text('sender').notNull(),text:text('text').notNull(),createdAt:integer('created_at').notNull(),readAt:integer('read_at')},t=>[index('recovery_messages_by_connection').on(t.patientId,t.doctorId,t.createdAt)]);

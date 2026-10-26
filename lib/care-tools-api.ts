@@ -1,6 +1,5 @@
 import {HealthError} from './health-api';
 import {validateSafetyPlan} from './safety-plan';
-import {mapStates,type MapRecord} from './recovery-map';
 const fail=(status:number,message:string):never=>{throw new HealthError(status,message);};
 const json=(data:unknown)=>Response.json(data,{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 async function body(req:Request){const text=await req.text();if(text.length>20000)fail(413,'Слишком большой запрос');try{const b=JSON.parse(text);if(!b||typeof b!=='object'||Array.isArray(b))throw Error();return b;}catch{return fail(400,'Некорректный запрос');}}
@@ -20,16 +19,6 @@ export async function careToolsApi(req:Request,path:string[],u:any,db:D1Database
   if(req.method==='POST'&&path.length===1&&!doctorRoute){const b=await body(req);if(typeof b.id!=='string'||!/^[a-f0-9-]{36}$/.test(b.id)||b.confirmed!==true)fail(400,'Подтвердите однократное сохранение проверенного плана');let data;try{data=validateSafetyPlan(b.plan);}catch(e){return fail(400,(e as Error).message);}const serialized=JSON.stringify(data);await db.prepare('INSERT INTO safety_plans(patient_id,request_id,data_json,created_at) VALUES(?,?,?,?) ON CONFLICT(patient_id) DO NOTHING').bind(patientId,b.id,serialized,Date.now()).run();const saved=await row('SELECT * FROM safety_plans WHERE patient_id=?',patientId);if(saved.request_id!==b.id||saved.data_json!==serialized)fail(409,'План уже сохранён и больше не изменяется');return json({plan:{data:JSON.parse(saved.data_json),createdAt:saved.created_at}});}
   return fail(405,'Сохранённый план можно только просматривать');
  }
- if(resource==='recovery-map'){
-  const records=await all('SELECT * FROM map_progress WHERE patient_id=?',patientId) as MapRecord[];
-  const preference=await row('SELECT branch FROM map_preferences WHERE patient_id=?',patientId);
-  const diary=await row('SELECT (EXISTS(SELECT 1 FROM mood_entries WHERE patient_id=?) OR EXISTS(SELECT 1 FROM daily_diary_entries WHERE patient_id=?)) AS has_diary',patientId,patientId);
-  const tracking=await row('SELECT COUNT(DISTINCT day) AS days FROM health_days WHERE patient_id=? AND (steps IS NOT NULL OR sleep_minutes IS NOT NULL OR active_minutes IS NOT NULL)',patientId);
-  const readiness={hasDiary:!!diary.has_diary,trackedDays:tracking.days,branch:preference?.branch??null},nodes=mapStates(records,readiness);
-  if(req.method==='GET'&&(doctorRoute||path.length===1))return json({nodes:doctorRoute?nodes.map(({key,title,status,updatedAt})=>({key,title,status,updatedAt})):nodes,branch:preference?.branch??null,readiness:{hasDiary:readiness.hasDiary,trackedDays:readiness.trackedDays}});
-  if(req.method==='PUT'&&path.length===2&&path[1]==='branch'&&!doctorRoute){const b=await body(req);if(!records.some(r=>r.node_key==='understand'&&r.status==='completed'))fail(409,'Выбор тропы откроется после базового модуля');if(!['body','thoughts'].includes(b.branch))fail(400,'Выберите одну из двух троп');await db.prepare('INSERT INTO map_preferences(patient_id,branch) VALUES(?,?) ON CONFLICT(patient_id) DO UPDATE SET branch=excluded.branch').bind(patientId,b.branch).run();return json({ok:true});}
-  if(req.method==='PUT'&&path.length===2&&!doctorRoute){const b=await body(req),node=nodes.find(n=>n.key===path[1]);if(!node)return fail(404,'Модуль не найден');if(node.status==='locked')fail(409,node.unlockHint);if(!['in_progress','completed'].includes(b.status)||typeof b.answer!=='string'||b.answer.length>1200)fail(400,'Проверьте ответ (до 1200 символов)');if(b.status==='completed'&&!b.answer.trim())fail(400,'Запишите хотя бы несколько слов о выбранном шаге');await db.prepare(`INSERT INTO map_progress(patient_id,node_key,status,answer,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(patient_id,node_key) DO UPDATE SET status=CASE WHEN map_progress.status='completed' THEN 'completed' ELSE excluded.status END,answer=excluded.answer,updated_at=excluded.updated_at`).bind(patientId,node.key,b.status,b.answer.trim(),Date.now()).run();return json({ok:true});}
-  return fail(405,'Действие не поддерживается');
- }
+
  return null;
 }

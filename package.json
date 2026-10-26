@@ -18,7 +18,8 @@
     "deploy": "node --import ./scripts/runtime.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config dist/server/wrangler.json",
     "test:api": "node tests/integration.mjs",
     "test:chat": "node tests/patient-chat.mjs",
-    "test:assessments": "node tests/assessments.mjs"
+    "test:assessments": "node tests/assessments.mjs",
+    "test:recovery": "node tests/recovery-map.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",

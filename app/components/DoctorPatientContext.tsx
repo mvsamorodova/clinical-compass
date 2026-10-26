@@ -4,6 +4,7 @@ import {Compass,ShieldCheck} from 'lucide-react';
 import {useSession} from '../../lib/session';
 import type {SafetyPlan} from '../../lib/safety-plan';
 import {PlanView} from './SafetyPlan';
+import {RecoveryConversation} from './RecoveryConversation';
 import {PatientSection} from './PatientSection';
 type SafetyData={plan:{data:SafetyPlan;createdAt:number}|null};
 type PathData={branch:'body'|'thoughts'|null;nodes:{key:string;title:string;status:'locked'|'available'|'in_progress'|'completed'}[]};
@@ -22,6 +23,6 @@ export function DoctorSafetyPlan({patientId}:{patientId:string}){
 export function DoctorPatientPath({patientId}:{patientId:string}){
  const {data,error,loading,refresh}=usePatientContext<PathData>(patientId,'recovery-map');
  return <PatientSection className="care-context" title="Путь пациента" icon={<Compass size={20}/>} actions={<button className="text-button" aria-label="Обновить путь пациента" disabled={loading} onClick={refresh}>Обновить</button>}>
-  {error&&<p role="alert" className="form-error">{error}</p>}{!data&&loading&&<p className="health-note">Загружаем путь пациента…</p>}{data&&<><p className="health-note">Вы видите этапы и выбранную тропу. Личные ответы в упражнениях доступны только пациенту. Карта не оценивает степень выздоровления.</p><p>Выбранная тропа: {data.branch==='body'?'Забота о теле':data.branch==='thoughts'?'Мысли':'ещё не выбрана'}</p><ul className="doctor-map-list">{data.nodes.map(node=><li key={node.key}><span>{node.title}</span><small>{{locked:'Пока закрыт',available:'Доступен',in_progress:'В процессе',completed:'Пройден'}[node.status]}</small></li>)}</ul></>}
+  {error&&<p role="alert" className="form-error">{error}</p>}{!data&&loading&&<p className="health-note">Загружаем путь пациента…</p>}{data&&<><p className="health-note">Все острова доступны с первого дня. Вы видите, какие разделы пациент открывал. Личные опоры и рефлексии доступны только пациенту.</p><ul className="doctor-map-list">{data.nodes.map(node=><li key={node.key}><span>{node.title}</span><small>{{locked:'Доступен',available:'Ещё не открывал',in_progress:'Открывал',completed:'Открывал'}[node.status]}</small></li>)}</ul><RecoveryConversation patientId={patientId}/></>}
  </PatientSection>;
 }
