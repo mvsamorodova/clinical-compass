@@ -7,7 +7,7 @@ const json = (data: unknown) => Response.json(data, {headers: {'Cache-Control':'
 const definition = (key: string) => CATALOGUE.find(t => t.key === key);
 const metadata = (t: AssessmentDefinition, forDoctor=false) => ({key:t.key,version:t.version,name:t.name,shortName:t.shortName,description:t.description,recallLabel:t.recallLabel,variantLabel:t.variantLabel,questionCount:t.externalCount??t.questions.length,respondent:t.respondent??'patient',...(forDoctor?{doctorDescription:t.doctorDescription,scoreDefinitions:t.scoreDefinitions,scoringNote:t.scoringNote,keyNotes:t.keyNotes,sources:t.sources}:{})});
 const form = (t:AssessmentDefinition,doctor=false)=>({...metadata(t,doctor),instruction:t.instruction,questions:t.questions,options:t.options,itemOptions:t.itemOptions,fields:t.fields,safetyItems:t.safetyItems});
-const assignmentView = (a: any, forDoctor=false) => ({id:a.id,test:metadata(definition(a.test_key)!,forDoctor),status:a.status,nextDueAt:a.next_due_at,createdAt:a.created_at,intervalDays:a.interval_days});
+const assignmentView = (a: any, forDoctor=false) => ({id:a.id,test:metadata(definition(a.test_key)!,forDoctor),status:a.status,nextDueAt:a.next_due_at,lastCompletedAt:a.last_completed_at??null,createdAt:a.created_at,intervalDays:a.interval_days});
 const DAY=86400000;
 function interval(value:unknown){if(!Number.isInteger(value)||Number(value)<1||Number(value)>365)fail(400,'Интервал должен быть целым числом от 1 до 365 дней');return Number(value);}
 const receipt = (r: any) => ({id:r.id,assignmentId:r.assignment_id,submittedAt:r.submitted_at,nextDueAt:r.submitted_at+r.interval_days*DAY,intervalDays:r.interval_days});
@@ -71,7 +71,7 @@ export async function assessmentApi(req: Request, path: string[], u: any, db: D1
    return saveResult(req,a,u,db);
   }
   if(method==='GET'&&path.length===3){
-   const assignments=await all('SELECT * FROM test_assignments WHERE patient_id=? AND doctor_id=? ORDER BY created_at DESC',patientId,u.id);
+   const assignments=await all('SELECT a.*,(SELECT MAX(r.submitted_at) FROM test_results r WHERE r.assignment_id=a.id) AS last_completed_at FROM test_assignments a WHERE patient_id=? AND doctor_id=? ORDER BY created_at DESC',patientId,u.id);
    const results=await all('SELECT r.* FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE a.patient_id=? AND a.doctor_id=? ORDER BY r.submitted_at DESC LIMIT 100',patientId,u.id);
    return json({catalogue:CATALOGUE.map(t=>metadata(t,true)),assignments:assignments.map(a=>assignmentView(a,true)),results:results.map(r=>({...receipt(r),version:r.test_version,entryMode:r.entry_mode,scores:r.scores_json?JSON.parse(r.scores_json):{depression:r.depression,anxiety:r.anxiety,stress:r.stress}}))});
   }
@@ -104,7 +104,7 @@ export async function assessmentApi(req: Request, path: string[], u: any, db: D1
  if(u.role!=='patient')fail(403,'Прохождение тестов доступно только пациенту');
  const linked=`FROM test_assignments a JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id WHERE a.patient_id=?`;
  if(method==='GET'&&path.length===1){
-  const assignments=await all(`SELECT a.* ${linked} ORDER BY a.created_at DESC`,u.id);
+  const assignments=await all(`SELECT a.*,(SELECT MAX(r.submitted_at) FROM test_results r WHERE r.assignment_id=a.id) AS last_completed_at ${linked} ORDER BY a.created_at DESC`,u.id);
   // Patients receive completion receipts, never computed scores or automated interpretation.
   const results=await all(`SELECT r.id,r.assignment_id,r.submitted_at,r.interval_days FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id WHERE a.patient_id=? ORDER BY r.submitted_at DESC LIMIT 100`,u.id);
   const self=assignments.filter(a=>!definition(a.test_key)?.respondent||definition(a.test_key)?.respondent==='patient');

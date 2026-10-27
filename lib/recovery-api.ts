@@ -26,13 +26,13 @@ export async function recoveryApi(req:Request,path:string[],u:any,db:D1Database,
  if(req.method==='GET'&&!route.length){
   const activity=await all('SELECT kind,item_key AS key,created_at AS createdAt FROM recovery_activity WHERE patient_id=?',patientId);
   const stations=STATIONS.map(s=>({...s,visited:activity.some(a=>a.kind==='visit'&&a.key===s.key)}));
-  if(doctor)return json({nodes:stations.map(s=>({key:s.key,title:s.title,status:s.visited?'in_progress':'available'})),branch:null});
+  if(doctor)return json({thoughtEntries:await all("SELECT id,text,created_at AS createdAt FROM recovery_entries WHERE patient_id=? AND category='thought' AND shared_doctor_id=? ORDER BY created_at DESC,id DESC LIMIT 200",patientId,u.id),nodes:stations.map(s=>({key:s.key,title:s.title,status:s.visited?'in_progress':'available'})),branch:null});
   const entries=await all('SELECT * FROM recovery_entries WHERE patient_id=? ORDER BY created_at DESC,id DESC LIMIT 200',patientId);
   const diary=await row('SELECT (SELECT COUNT(*) FROM mood_entries WHERE patient_id=?)+(SELECT COUNT(*) FROM daily_diary_entries WHERE patient_id=?) AS total,(SELECT COUNT(*) FROM mood_entries WHERE patient_id=? AND created_at>=?)+(SELECT COUNT(*) FROM daily_diary_entries WHERE patient_id=? AND created_at>=?) AS week',patientId,patientId,patientId,Date.now()-7*86400000,patientId,Date.now()-7*86400000);
   const unread=connection?await row("SELECT COUNT(*) AS n FROM recovery_messages WHERE patient_id=? AND doctor_id=? AND sender='doctor' AND read_at IS NULL",patientId,connection.doctor_id):{n:0};
   const assignments=connection?await row("SELECT COUNT(*) AS n FROM test_assignments WHERE patient_id=? AND doctor_id=? AND status='active'",patientId,connection.doctor_id):{n:0};
   const legacy=await all("SELECT node_key AS title,answer,updated_at AS updatedAt FROM map_progress WHERE patient_id=? AND answer<>'' ORDER BY updated_at DESC",patientId);
-  return json({stations,activity,entries:entries.map(e=>({id:e.id,category:e.category,text:e.text,mediaType:e.media_type,mediaUrl:e.media_key?'/api/recovery-map/media/'+e.id:null,createdAt:e.created_at})),counts:{anchors:entries.filter(e=>e.category==='bad-day'||ANCHOR_CATEGORIES.some(c=>c.key===e.category)).length,diaryTotal:diary.total,diaryWeek:diary.week,learned:activity.filter(a=>a.kind==='learned').length,watched:activity.filter(a=>a.kind==='watched').length,unread:unread.n,assignments:assignments.n},days:Math.max(1,Math.floor((Date.now()-u.created_at)/86400000)+1),legacy});
+  return json({doctorId:connection?.doctor_id??null,stations,activity,entries:entries.map(e=>({id:e.id,category:e.category,text:e.text,sharedWithDoctor:!!e.shared_doctor_id,mediaType:e.media_type,mediaUrl:e.media_key?'/api/recovery-map/media/'+e.id:null,createdAt:e.created_at})),counts:{anchors:entries.filter(e=>e.category==='bad-day'||ANCHOR_CATEGORIES.some(c=>c.key===e.category)).length,diaryTotal:diary.total,diaryWeek:diary.week,learned:activity.filter(a=>a.kind==='learned').length,watched:activity.filter(a=>a.kind==='watched').length,unread:unread.n,assignments:assignments.n},days:Math.max(1,Math.floor((Date.now()-u.created_at)/86400000)+1),legacy});
  }
  if(doctor)return fail(405,'Личные опоры и записи доступны только пациенту');
  if(route[0]==='activity'&&route.length===1&&req.method==='PUT'){
@@ -49,6 +49,12 @@ export async function recoveryApi(req:Request,path:string[],u:any,db:D1Database,
   if((await row('SELECT COUNT(*) AS n FROM recovery_entries WHERE patient_id=?',patientId)).n>=200)fail(409,'В опорах уже 200 записей. Можно удалить ненужные');
   await run('INSERT INTO recovery_entries(id,patient_id,category,text,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING',b.id,patientId,b.category,value,Date.now());
   const saved=await row('SELECT * FROM recovery_entries WHERE id=? AND patient_id=?',b.id,patientId);if(!saved||saved.text!==value||saved.category!==b.category)fail(409,'Запись изменилась');return json({ok:true});
+ }
+ if(route[0]==='entries'&&route.length===2&&req.method==='PATCH'){
+  const b=await body(req);if(typeof b.shared!=='boolean')fail(400,'Укажите доступ к записи');
+  if(b.shared&&(!connection||connection.doctor_id!==b.doctorId))fail(409,'Лечащий врач изменился. Обновите дневник');
+  const result=b.shared?await run("UPDATE recovery_entries SET shared_doctor_id=? WHERE id=? AND patient_id=? AND category='thought' AND EXISTS(SELECT 1 FROM patient_records WHERE patient_id=? AND doctor_id=?)",b.doctorId,route[1],patientId,patientId,b.doctorId):await run("UPDATE recovery_entries SET shared_doctor_id=NULL WHERE id=? AND patient_id=? AND category='thought'",route[1],patientId);
+  if(!result.meta.changes)fail(404,'Запись или связь с врачом не найдена');return json({ok:true});
  }
  if(route[0]==='entries'&&route.length===2&&req.method==='DELETE'){
   const e=await row('SELECT * FROM recovery_entries WHERE id=? AND patient_id=?',route[1],patientId);if(!e)fail(404,'Запись не найдена');await run('DELETE FROM recovery_entries WHERE id=? AND patient_id=?',e.id,patientId);if(e.media_key&&bucket)await bucket.delete(e.media_key);return json({ok:true});
