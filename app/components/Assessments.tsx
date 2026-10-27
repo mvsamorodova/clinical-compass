@@ -11,7 +11,7 @@ import {validateFields, type AssessmentDefinition} from '../../lib/assessments';
 import {AssessmentFields,AssessmentResponse} from './AssessmentFields';
 
 type Test = Pick<AssessmentDefinition,'key'|'version'|'name'|'shortName'|'description'|'doctorDescription'|'recallLabel'|'variantLabel'|'scoreDefinitions'|'scoringNote'|'sources'|'respondent'|'keyNotes'> & {questionCount:number};
-type Assignment = {id:string;test:Test;status:'active'|'paused';nextDueAt:number;intervalDays:number};
+type Assignment = {id:string;test:Test;status:'active'|'paused';nextDueAt:number;lastCompletedAt?:number|null;intervalDays:number};
 type Result = {id:string;assignmentId:string;submittedAt:number;nextDueAt:number;scores?:Record<string,number>};
 type Data = {catalogue?:Test[];assignments:Assignment[];results:Result[]};
 const modeLabel=(t:Test)=>t.respondent==='external'?'Внешнее обследование':t.respondent==='clinician'?'Заполняет врач':'Заполняет пациент';
@@ -112,17 +112,16 @@ export function DoctorTestHistory({patientId}:{patientId:string}){
  </PatientSection>;
 }
 
-export function PatientTests(){
+export function PatientTests({embedded=false}:{embedded?:boolean}){
  const {api,data,error,setError,loading,refresh}=useTests('tests'),[opened,setOpened]=useState<{assignment:Assignment;definition:AssessmentDefinition}|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[now,setNow]=useState(Date.now());
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
  async function start(a:Assignment){setBusy(true);setError('');setMessage('');try{setOpened(await api('tests/'+a.id));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  if(opened)return <Questionnaire key={opened.assignment.id} {...opened} onBack={()=>{setOpened(null);void refresh();}} onComplete={r=>{setOpened(null);setMessage(`Ответы сохранены и доступны вашему врачу. Следующее прохождение — ${date(r.nextDueAt)}.`);void refresh();}}/>;
- return <><div className="page-title"><div><h1>Мои тесты</h1></div><button className="secondary" disabled={loading} onClick={refresh}><RefreshCw size={16}/>Обновить</button></div>
+ return <section className={embedded?"panel patient-assessments":"patient-assessments"} aria-label="Назначенные тесты"><div className="tests-heading"><h2>Назначенные тесты</h2><button className="secondary" disabled={loading} onClick={refresh}><RefreshCw size={16}/>Обновить</button></div>
   {message&&<div className="test-success" role="status"><Check size={21}/><div><strong>Спасибо, вы завершили тест</strong><p>{message}</p></div></div>}
   {error&&<div className="error-banner" role="alert">{error}</div>}
-  {loading&&!data?<div className="panel test-empty"><LoaderCircle className="spin"/><p>Загружаем ваши тесты…</p></div>:data&&!data.assignments.length?<div className="panel test-empty"><ClipboardList size={32}/><h2>Пока нет назначенных тестов</h2></div>:<div className="patient-tests-list">{data?.assignments.map(a=><section className="panel patient-test-card" key={a.id}><div className="test-card-top"><span className="test-symbol"><ClipboardList size={26}/></span><span className={'test-status '+(a.status==='active'&&a.nextDueAt<=now?'ready':'')}>{stateLabel(a,now)}</span></div><span className="test-code">{a.test.shortName}</span><h2>{a.test.name}</h2><p>{a.test.description}</p><p className="patient-test-period">Период оценки: {a.test.recallLabel.toLowerCase()}</p><div className="test-schedule"><CalendarDays size={18}/><span>{scheduleLabel(a.intervalDays)}{a.status==='active'&&a.nextDueAt>now&&<><br/><strong>{date(a.nextDueAt)}</strong></>}</span></div><button className="primary" disabled={busy||a.status!=='active'||a.nextDueAt>now} onClick={()=>start(a)}>{busy?<LoaderCircle className="spin" size={16}/>:<ClipboardList size={17}/>} {a.status==='paused'?'Приостановлен врачом':a.nextDueAt>now?'Пока недоступен':'Пройти тест'}</button></section>)}</div>}
-  {!!data?.results.length&&<section className="panel tests-panel"><h2>Мои прохождения</h2><p className="test-muted">Ответы доступны вашему врачу. Результаты можно обсудить на консультации.</p>{data.results.map(r=><div className="test-receipt" key={r.id}><Check size={19}/><div><strong>{data.assignments.find(a=>a.id===r.assignmentId)?.test.shortName}</strong><p>{date(r.submittedAt)}</p></div><span>Отправлено врачу</span></div>)}</section>}
- </>;
+  {loading&&!data?<div className="panel test-empty"><LoaderCircle className="spin"/><p>Загружаем ваши тесты…</p></div>:data&&!data.assignments.length?<div className="panel test-empty"><ClipboardList size={32}/><h2>Пока нет назначенных тестов</h2></div>:<div className="patient-tests-list">{data?.assignments.map(a=><section className="panel patient-test-card" key={a.id}><div className="test-card-top"><span className="test-symbol"><ClipboardList size={26}/></span><span className={'test-status '+(a.status==='active'&&a.nextDueAt<=now?'ready':'')}>{stateLabel(a,now)}</span></div><span className="test-code">{a.test.shortName}</span><h2>{a.test.name}</h2><p>{a.test.description}</p><p className="patient-test-period">Период оценки: {a.test.recallLabel.toLowerCase()}</p>{a.lastCompletedAt&&<p className="test-completed"><Check size={16}/>Пройден {date(a.lastCompletedAt)}</p>}<div className="test-schedule"><CalendarDays size={18}/><span>{scheduleLabel(a.intervalDays)}{a.status==='active'&&<><br/><strong>{a.nextDueAt>now?'Следующий тест: '+date(a.nextDueAt):'Следующий тест доступен сейчас'}</strong></>}</span></div><button className="primary" disabled={busy||a.status!=='active'||a.nextDueAt>now} onClick={()=>start(a)}>{busy?<LoaderCircle className="spin" size={16}/>:<ClipboardList size={17}/>} {a.status==='paused'?'Приостановлен врачом':a.nextDueAt>now?'Пока недоступен':'Пройти тест'}</button></section>)}</div>}
+ </section>;
 }
 
 function Questionnaire({assignment:a,definition:t,onBack,onComplete,endpoint}:{assignment:Assignment;definition:AssessmentDefinition;onBack:()=>void;onComplete:(r:Result)=>void;endpoint?:string}){

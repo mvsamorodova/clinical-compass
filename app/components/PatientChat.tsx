@@ -1,181 +1,33 @@
-'use client';
-import {ThoughtDiary} from './ThoughtDiary';
-import {PatientSection} from './PatientSection';
-import {VoiceRecorder} from './VoiceRecorder';
-import { PatientDailyDiary } from './DailyDiary';
-import {ReflectionQuestions,ReflectionAnswers} from './ReflectionQuestions';
+ 'use client';
+import {useEffect,useRef,useState} from 'react';
+import {BookHeart,Check,Heart,LockKeyhole,RefreshCw,Trash2} from 'lucide-react';
+import {useSession} from '../../lib/session';
+import {MOODS,EMOTIONS} from '../../lib/patient-chat';
 import type {ReflectionAnswer} from '../../lib/reflection';
-
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, BookHeart, Check, CheckCheck, ChevronLeft, Compass, Heart, LoaderCircle, LockKeyhole, MessageCircle, Maximize2, Minimize2, Minus, Plus, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
-import { EMOTIONS, MOODS, safetyNotice } from '../../lib/patient-chat';
-import { useLocalModel } from '../../lib/use-local-model';
-import { useSession } from '../../lib/session';
-
-type Entry = { reflections?:ReflectionAnswer[]; id: string; mood: number; emotions: string[]; note: string; sharedWithDoctor: boolean; createdAt: number };
-type Turn = { id: number; requestId: string; message: string; reply: string; kind: string; voiceId?:string|null; createdAt: number };
-type Mode = 'diary' | 'talk';
-type Step = 'mood' | 'emotions' | 'note';
-const time = (ts: number) => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-const when = (ts: number) => new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-function AssistantBubble({ children, talk = false, safety = false }: { children: React.ReactNode; talk?: boolean; safety?: boolean }) {
-  return <div className={`chat-line assistant ${safety ? 'chat-safety' : ''}`}><span className="chat-avatar"><Compass size={19} /></span><div><span className="chat-sender">{safety ? 'Служебное сообщение · не ответ модели' : talk ? 'Qwen3 · ИИ-помощник' : 'Дневник настроения'}</span><div className="chat-bubble">{children}</div></div></div>;
+import {ReflectionQuestions,ReflectionAnswers} from './ReflectionQuestions';
+import {PatientSection} from './PatientSection';
+import {PatientDailyDiary} from './DailyDiary';
+import {ThoughtDiary,DoctorThoughtDiary} from './ThoughtDiary';
+import {VoiceTextField} from './VoiceTextField';
+type Entry={id:string;mood:number;emotions:string[];note:string;reflections?:ReflectionAnswer[];sharedWithDoctor:boolean;createdAt:number};
+const when=(ts:number)=>new Date(ts).toLocaleString('ru-RU',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+export default function PatientDiary(){
+ const [mode,setMode]=useState<'thought'|'mood'>('thought');
+ useEffect(()=>{window.dispatchEvent(new CustomEvent('compass-dictation-open',{detail:'tab-changed'}));},[mode]);
+ return <section className="diary-page"><div className="page-title"><div><h1>Дневник</h1><p>Записывайте мысли и замечайте, как меняется ваше состояние.</p></div><span className="chat-private-tag"><LockKeyhole size={14}/>Личное пространство</span></div><div className="chat-modes diary-tabs" role="tablist" aria-label="Вид дневника"><button id="thought-tab" role="tab" aria-selected={mode==='thought'} aria-controls="thought-panel" className={mode==='thought'?'active':''} onClick={()=>setMode('thought')}><BookHeart size={17}/>Дневник мыслей</button><button id="mood-tab" role="tab" aria-selected={mode==='mood'} aria-controls="mood-panel" className={mode==='mood'?'active':''} onClick={()=>setMode('mood')}><Heart size={17}/>Дневник настроения</button></div><div id="thought-panel" role="tabpanel" aria-labelledby="thought-tab" hidden={mode!=='thought'}><ThoughtDiary/></div><div id="mood-panel" role="tabpanel" aria-labelledby="mood-tab" hidden={mode!=='mood'}><MoodDiary/><PatientDailyDiary/></div></section>;
 }
-function UserBubble({ children, date }: { children: React.ReactNode; date?: number }) {
-  return <div className="chat-line patient"><div><span className="chat-sender">Вы{date ? ` · ${time(date)}` : ''}</span><div className="chat-bubble">{children}</div></div></div>;
-}
-export default function PatientChat({ name, initialMode = 'diary' }: { name: string; initialMode?: Mode }) {
-  const { api } = useSession();
-  const model = useLocalModel();
-  const [liveReply, setLiveReply] = useState('');
-  const [sendingMessage, setSendingMessage] = useState('');
-  const [sendingVoice,setSendingVoice]=useState<string|undefined>();
-  const [generating, setGenerating] = useState(false);
-  const [pendingReply, setPendingReply] = useState<{message:string;reply:string;kind:string;voiceId?:string}|null>(null);
-  const sending = useRef(false);
-  const [mode, setMode] = useState<Mode>(initialMode);
-  const [expanded,setExpanded]=useState(false),[textSize,setTextSize]=useState(15);
-  const saveButton=useRef<HTMLButtonElement>(null);
-  useEffect(()=>{const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')setExpanded(false);};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape);},[]);
-  const [step, setStep] = useState<Step>('mood');
-  const [mood, setMood] = useState<number | null>(null);
-  const [emotions, setEmotions] = useState<string[]>([]);
-  const [note, setNote] = useState('');
-  const [reflections,setReflections]=useState<ReflectionAnswer[]>([]);
-  const [reflectionSequence,setReflectionSequence]=useState<number|null>(null);
-  const [share, setShare] = useState(false);
-  const [saved, setSaved] = useState<Entry | null>(null);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [moreEntries, setMoreEntries] = useState(false);
-  const [doctorName, setDoctorName] = useState<string | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [moreTurns, setMoreTurns] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [removing, setRemoving] = useState<string | null>(null);
-  const [status, setStatus] = useState('');
-  const draftId = useRef('');
-  const messageRequest = useRef<{ id: string; message: string; reply?: string; kind?: string;voiceId?:string } | null>(null);
-  const stream = useRef<HTMLDivElement>(null);
-  const loaded = useRef(false);
-
-  async function loadEntries() {
-    const result = await api('journal');
-    setEntries(result.entries); setTotal(result.total); setReflectionSequence(v=>v??result.total); setMoreEntries(result.hasMore); setDoctorName(result.doctorName);
-  }
-  async function load() {
-    setLoading(true); setError('');
-    try {
-      const [, chat] = await Promise.all([loadEntries(), api('chat')]);
-      setTurns(chat.turns); setMoreTurns(chat.hasMore); loaded.current = true;
-    } catch (e) { setError((e as Error).message); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { draftId.current = crypto.randomUUID(); void load(); }, []);
-  useEffect(() => { if (stream.current) stream.current.scrollTop = stream.current.scrollHeight; }, [step, saved, mode, turns.at(-1)?.id, loading, busy, liveReply]);
-
-  function newEntry() {
-    draftId.current = crypto.randomUUID(); setMood(null); setEmotions([]); setNote(''); setReflections([]); setReflectionSequence(total); setShare(false); setSaved(null); setStep('mood'); setStatus(''); setError('');
-  }
-  function toggleEmotion(value: string) { setEmotions(current => current.includes(value) ? current.filter(e => e !== value) : current.length < 3 ? [...current, value] : current); }
-  async function saveDiary() {
-    if (mood === null || busy) return;
-    setBusy(true); setError('');
-    try {
-      const { entry } = await api('journal', 'POST', { id: draftId.current, mood, emotions, note, reflections, shareWithDoctor: share });
-      setSaved(entry); setStatus('Запись сохранена в дневнике');
-      try { await loadEntries(); } catch { setError('Запись сохранена, но список не обновился. Нажмите «Обновить».'); }
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  async function sendMessage(message = draft,voiceId?:string):Promise<boolean> {
-    message = message.trim();
-    if (!message || sending.current || busy || loading || !loaded.current) return false;
-    if (new TextEncoder().encode(message).length > 2100) { setError('Сообщение слишком длинное для локальной модели. Сократите его.'); return false; }
-    if (model.state !== 'ready' && !messageRequest.current?.reply && !safetyNotice(message)) { setError('Нажмите «Загрузить бесплатную модель», чтобы начать разговор.'); return false; }
-    sending.current = true; setBusy(true); setError(''); setSendingMessage(message);setSendingVoice(voiceId);
-    if (!messageRequest.current || messageRequest.current.message !== message || messageRequest.current.voiceId !== voiceId) messageRequest.current = { id: crypto.randomUUID(), message, voiceId };
-    const request = messageRequest.current;
-    try {
-      if (!request.reply) {
-        const notice = safetyNotice(message);
-        request.kind = notice ? 'safety' : 'llm';
-        if (notice) request.reply = notice;
-        else {
-          setGenerating(true); setLiveReply('');
-          request.reply = await model.generate(message, turns, setLiveReply);
-        }
-      }
-      setGenerating(false); setLiveReply(request.reply);
-      const result = await api('chat', 'POST', { requestId: request.id, message, reply: request.reply, voiceId });
-      setTurns(current => current.some(t => t.id === result.turn.id) ? current : [...current, result.turn]);
-      setDraft(''); messageRequest.current = null; setPendingReply(null);return true;
-    } catch (e) {
-      if(!voiceId)setDraft(message);
-      if (request.reply) { setPendingReply({ message, reply: request.reply, kind: request.kind || 'llm',voiceId }); setError('Ответ получен, но не удалось сохранить переписку. Нажмите «Повторить сохранение». Не закрывайте страницу.'); }
-      else setError((e as Error).message);
-      return false;
-    } finally { sending.current = false; setBusy(false); setGenerating(false); setSendingMessage('');setSendingVoice(undefined); setLiveReply(''); }
-  }
-  async function olderMessages() {
-    if (!turns.length) return;
-    setBusy(true); setError('');
-    try { const result = await api('chat?before=' + turns[0].id); setTurns(current => [...result.turns, ...current]); setMoreTurns(result.hasMore); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  async function olderEntries() {
-    setBusy(true); setError('');
-    try { const result = await api('journal?offset=' + entries.length); setEntries(current => [...current, ...result.entries.filter((e: Entry) => !current.some(v => v.id === e.id))]); setMoreEntries(result.hasMore); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  async function deleteEntry(id: string) {
-    setBusy(true); setError('');
-    try { await api('journal/' + id, 'DELETE'); setRemoving(null); if (saved?.id === id) newEntry(); await loadEntries(); setStatus('Запись удалена'); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  const selectedMood = MOODS.find(m => m.value === mood);
-  return <section className="chat-page">
-    <div className="page-title"><div><h1>Чат и дневник</h1></div><span className="chat-private-tag"><LockKeyhole size={14} /> Личное пространство</span></div>
-    {mode === 'diary' && <><PatientDailyDiary/><ThoughtDiary/></>}
-    <div className={`chat-layout ${expanded?'chat-expanded':''}`} style={{'--chat-text-size':`${textSize}px`} as React.CSSProperties}>
-      <section className="panel chat-window" aria-label="Чат пациента">
-        <header className="chat-window-header"><span className="chat-header-mark"><Compass size={25} /></span><div><h2>{mode === 'diary' ? 'Новая запись' : 'ИИ-помощник'}</h2></div><div className="chat-view-controls"><button type="button" className="text-button" aria-label={expanded?'Свернуть чат':'Развернуть чат'} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?<Minimize2 size={17}/>:<Maximize2 size={17}/>}<span>{expanded?'Свернуть':'Развернуть чат'}</span></button><div className="chat-text-controls" aria-label="Размер текста"><button className="icon-button" aria-label="Уменьшить текст чата" disabled={textSize<=14} onClick={()=>setTextSize(v=>v-1)}><Minus size={14}/></button><span>Аа</span><button className="icon-button" aria-label="Увеличить текст чата" disabled={textSize>=22} onClick={()=>setTextSize(v=>v+1)}><Plus size={14}/></button></div></div></header>
-        <div className="chat-modes" role="tablist" aria-label="Режим чата"><button role="tab" aria-selected={mode === 'diary'} disabled={busy} className={mode === 'diary' ? 'active' : ''} onClick={() => { setMode('diary'); setError(''); }}><BookHeart size={17} /> Дневник настроения</button><button role="tab" aria-selected={mode === 'talk'} disabled={busy} className={mode === 'talk' ? 'active' : ''} onClick={() => { setMode('talk'); setError(''); }}><MessageCircle size={17} /> Поговорить</button></div>
-        {mode === 'talk' && <div className={`model-panel model-${model.state}`} aria-live="polite">
-          {model.state === 'ready' ? <><span className="model-ready-dot" /><span><strong>Qwen3 готова</strong> · {model.cached?'сохранена на устройстве':'ответы создаются на вашем устройстве'}</span></> : model.state === 'loading' ? <><LoaderCircle size={17} className="spin" /><div className="model-load-progress"><strong>{model.cached?'Подготавливаем сохранённую модель':'Скачиваем и подготавливаем модель'} · {model.progress}%</strong><progress value={model.progress} max="100" aria-label="Загрузка модели" /><small>{model.cached?'Файлы читаются с устройства. Повторная загрузка весов не нужна.':'Первый запуск может занять несколько минут.'}</small></div><button className="text-button" onClick={model.stop}>Отмена</button></> : model.state === 'unsupported' ? <div><strong>В этом браузере недоступен WebGPU</strong><p>Попробуйте актуальный Chrome или Edge на компьютере с аппаратным ускорением. Дневник и история переписки работают и здесь.</p></div> : <div><strong>{model.cached?'Модель сохранена в браузере':'Загрузите модель для разговора'}</strong><p>{model.cached?'Можно запустить без повторного скачивания.':'Около 1 ГБ · бесплатно · нужен WebGPU и 2–3 ГБ памяти GPU.'}</p>{model.error && <p role="alert">{model.error}</p>}<button className="primary" disabled={busy} onClick={model.start}><Sparkles size={15} />{model.cached?'Запустить сохранённую модель':model.state==='error'?'Повторить загрузку модели':'Загрузить бесплатную модель'}</button></div>}
-        </div>}
-        {mode === 'talk' && <details className="model-info inline-help"><summary>О модели и приватности</summary><p>Qwen3 1.7B создаёт ответы на вашем устройстве. Файлы модели сохраняются в этом браузере. Модель видит недавние сообщения чата, без дневника и медицинской карты. Переписка хранится в вашем аккаунте на сервере приложения; врачу и поставщику модели она не передаётся.</p></details>}
-        {error && <div className="chat-error" role="alert">{error}{!loaded.current && <button disabled={loading} onClick={load}>Повторить загрузку</button>}</div>}
-        <div className="chat-messages" ref={stream} role="log" aria-label={mode === 'diary' ? 'Диалог дневника' : 'Переписка с ИИ-помощником'} aria-live="polite" aria-relevant="additions">
-          {loading ? <div className="chat-loading"><LoaderCircle className="spin" size={22} /><span>Загружаем ваше пространство…</span></div> : mode === 'diary' ? <>
-            <div className="chat-date-label">СЕГОДНЯ · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</div>
-            <AssistantBubble><p>{name.split(' ')[0]}, как вы сейчас себя чувствуете?</p></AssistantBubble>
-            {step === 'mood' && !saved && <div className="mood-picker" aria-label="Выберите настроение">{MOODS.map(item => <button key={item.value} aria-pressed={mood === item.value} onClick={() => { setMood(item.value); setStep('emotions'); }}><span className="mood-emoji">{item.emoji}</span><span>{item.label}</span><small>{item.value}/5</small></button>)}</div>}
-            {selectedMood && step !== 'mood' && <><UserBubble><span className="mood-inline">{selectedMood.emoji} {selectedMood.label} <small>{mood}/5</small></span></UserBubble><AssistantBubble><p>Какие чувства вы замечаете?</p><p className="bubble-secondary">Можно выбрать до трёх или пропустить этот шаг.</p></AssistantBubble></>}
-            {step === 'emotions' && !saved && <div className="diary-choice-area"><div className="emotion-chips">{EMOTIONS.map(emotion => <button key={emotion} aria-pressed={emotions.includes(emotion)} disabled={!emotions.includes(emotion) && emotions.length >= 3} className={emotions.includes(emotion) ? 'selected' : ''} onClick={() => toggleEmotion(emotion)}>{emotions.includes(emotion) && <Check size={12} />}{emotion}</button>)}</div><div className="diary-step-actions"><button className="text-button" onClick={() => setStep('mood')}><ChevronLeft size={14} /> Изменить настроение</button><button className="primary" onClick={() => setStep('note')}>{emotions.length ? 'Продолжить' : 'Пропустить'}<ArrowRight size={15} /></button></div></div>}
-            {step === 'note' && <><UserBubble>{emotions.length ? emotions.join(', ') : 'Пока не могу назвать чувство'}</UserBubble><AssistantBubble><p>Можно немного поразмышлять о вашем дне.</p><p className="bubble-secondary">Вопросы и заметка необязательны. Вы можете сохранить только настроение.</p></AssistantBubble>{saved && <><UserBubble>{saved.note || 'Сохранить без заметки'}</UserBubble><div className="diary-saved"><span><CheckCheck size={20} /></span><div><h3>Запись сохранена</h3><p>{saved.sharedWithDoctor ? 'Вы поделились этой записью с лечащим врачом.' : 'Она видна только вам.'}</p><small>Самооценка настроения не является диагнозом или клинической шкалой.</small></div></div>{saved.note&&<button className="text-button" disabled={busy} onClick={async()=>{setBusy(true);try{await api('recovery-map/entries','POST',{id:crypto.randomUUID(),category:'techniques',text:saved.note});setStatus('Наблюдение добавлено в личные опоры')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}}><Heart size={15}/>Это помогло — добавить в опоры</button>}<button className="secondary another-entry" onClick={newEntry}><Plus size={16} /> Ещё одна запись</button></>}</>}
-          </> : <>
-            {!moreTurns && <AssistantBubble talk><p>Что вас сейчас занимает? Можно рассказать о дне или подготовить вопрос к встрече с врачом.</p></AssistantBubble>}
-            {moreTurns && <button className="chat-older" disabled={busy} onClick={olderMessages}>Показать предыдущие сообщения</button>}
-            {turns.map(turn => <div key={turn.id} className="chat-turn"><UserBubble date={turn.createdAt}>{turn.voiceId?<><strong>Голосовое сообщение</strong><audio controls preload="none" src={`/api/voice/${turn.voiceId}/audio`}/></>:turn.message}</UserBubble><AssistantBubble talk safety={turn.kind === 'safety'}>{turn.kind === 'safety' && <strong className="safety-heading">Обратите внимание</strong>}<p className="preserve">{turn.reply}</p></AssistantBubble></div>)}
-            {!turns.length && !sendingMessage && !pendingReply && <div className="chat-starters"> <span>Можно начать так</span>{['Хочу рассказать, что меня тревожит', 'Сегодня я чувствую усталость', 'Хочу отметить хороший момент дня'].map(prompt => <button key={prompt} disabled={busy || !loaded.current} onClick={() => { setDraft(prompt); }}>{prompt}<ArrowRight size={14} /></button>)}</div>}
-            {(sendingMessage || pendingReply) && <div className="chat-turn"><UserBubble>{(sendingVoice||pendingReply?.voiceId)?'Голосовое сообщение':sendingMessage || pendingReply?.message}</UserBubble>{(liveReply || pendingReply?.reply) && <AssistantBubble talk safety={pendingReply?.kind === 'safety' || (!!sendingMessage && !!safetyNotice(sendingMessage))}><p className="preserve">{liveReply || pendingReply?.reply}</p></AssistantBubble>}{pendingReply && !busy && <button className="secondary" onClick={() => sendMessage(pendingReply.message,pendingReply.voiceId)}>Повторить сохранение</button>}</div>}
-            {busy && <div className="chat-typing"><LoaderCircle size={15} className="spin" />{generating ? 'Qwen3 составляет ответ…' : 'Сохраняем…'}{generating && <button className="text-button" onClick={model.stop}>Остановить</button>}</div>}
-          </>}
-        </div>
-        {mode === 'diary' ? <div className="diary-composer">
-          {step === 'note' && !saved ? <form onSubmit={e => { e.preventDefault(); void saveDiary(); }}><ReflectionQuestions key={draftId.current} sequence={reflectionSequence??0} answers={reflections} onChange={setReflections} disabled={busy} onComplete={()=>{saveButton.current?.scrollIntoView({behavior:'smooth',block:'center'});saveButton.current?.focus({preventScroll:true});}}/><details className="diary-note-optional"><summary>Добавить заметку</summary><label className="field" htmlFor="diary-note">Что ещё хочется записать?</label><textarea id="diary-note" placeholder="Сегодня я заметил(а)…" value={note} maxLength={3000} rows={3} disabled={busy} onChange={e => setNote(e.target.value)} /></details><div className="diary-compose-meta"><button type="button" className="text-button" disabled={busy} onClick={() => setStep('emotions')}><ChevronLeft size={14} /> Изменить чувства</button><span>{note.length}/3000</span></div>{doctorName ? <label className="diary-share"><input type="checkbox" checked={share} disabled={busy} onChange={e => setShare(e.target.checked)} /><span>Показать эту запись врачу<small>{doctorName}. Только эта запись, без переписки с помощником.</small></span></label> : <div className="diary-share-hint"><LockKeyhole size={14} /> Запись останется личной. Чтобы делиться записями, подключитесь к врачу.</div>}<button ref={saveButton} className="primary full diary-save" type="submit" disabled={busy || loading || !loaded.current}>{busy ? <LoaderCircle size={17} className="spin" /> : <Check size={17} />}Сохранить в дневник</button></form> : <div className="diary-progress"><div className="step-dots"><i className="done" /><i className={step !== 'mood' ? 'done' : ''} /><i className={step === 'note' ? 'done' : ''} /></div><span>{saved ? 'Спасибо, что уделили себе время' : step === 'mood' ? 'Шаг 1 из 3 · Настроение' : 'Шаг 2 из 3 · Чувства'}</span></div>}
-        </div> : <form className="talk-composer" onSubmit={e => { e.preventDefault(); void sendMessage(); }}><VoiceRecorder disabled={busy||loading||!loaded.current||!!pendingReply} assistantReady={model.state==='ready'} onSend={sendMessage}/><div className="talk-input-wrap"><label className="sr-only" htmlFor="chat-message">Сообщение помощнику</label><textarea id="chat-message" placeholder={model.state === 'ready' ? "О чём хочется поговорить?" : "Напишите сообщение, затем загрузите модель"} value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000} rows={2} disabled={busy || loading || !loaded.current || !!pendingReply} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void sendMessage(); } }} /><button className="chat-send" type="submit" disabled={!draft.trim() || busy || loading || !loaded.current || !!pendingReply || (model.state !== 'ready' && !safetyNotice(draft))} aria-label="Отправить сообщение">{busy ? <LoaderCircle size={18} className="spin" /> : <Send size={18} />}</button></div><div className="chat-composer-caption"><span>Enter — отправить · Shift + Enter — новая строка</span><span>{draft.length}/1000</span></div><p className="chat-disclaimer">Помощник может ошибаться и не заменяет врача или экстренную помощь. Переписка недоступна врачу.</p></form>}
-      </section>
-      <aside className="journal-sidebar"><section className="panel journal-panel"><div className="journal-heading"><span className="stat-icon green"><BookHeart size={21} /></span><div><h2>Мой дневник <span>{total}</span></h2></div></div><div className="journal-toolbar"><button disabled={busy || loading} onClick={() => { setMode('diary'); newEntry(); }}><Plus size={14} /> Новая запись</button><button disabled={busy || loading} onClick={() => { void loadEntries().catch(e => setError(e.message)); }}>Обновить</button></div>{!loading && !entries.length && <div className="journal-empty"><Heart size={27} /><p>Здесь появятся ваши записи</p></div>}<div className="journal-entries">{entries.map(entry => <article className="journal-entry" key={entry.id}><div className="journal-entry-title"><span className="journal-emoji">{MOODS[entry.mood - 1]?.emoji}</span><div><strong>{MOODS[entry.mood - 1]?.label}<small>{entry.mood}/5</small></strong><time>{when(entry.createdAt)}</time></div><button className="icon-button" disabled={busy} aria-label={`Удалить запись от ${when(entry.createdAt)}`} onClick={() => setRemoving(entry.id)}><Trash2 size={14} /></button></div>{entry.emotions.length > 0 && <div className="journal-tags">{entry.emotions.map(emotion => <span key={emotion}>{emotion}</span>)}</div>}<ReflectionAnswers answers={entry.reflections}/>{entry.note && <details><summary>Прочитать заметку</summary><p className="preserve">{entry.note}</p></details>}<span className="journal-visibility">{entry.sharedWithDoctor ? <><ShieldCheck size={12} /> Вы поделились с врачом</> : <><LockKeyhole size={12} /> Только вам</>}</span>{removing === entry.id && <div className="journal-delete-confirm"><p>Удалить запись без возможности восстановления?</p><div><button disabled={busy} onClick={() => setRemoving(null)}>Отмена</button><button disabled={busy} onClick={() => deleteEntry(entry.id)}>Удалить запись</button></div></div>}</article>)}</div>{moreEntries && <button className="chat-older" disabled={busy} onClick={olderEntries}>Показать ещё записи</button>}</section><div className="journal-privacy"><LockKeyhole size={19} /><p>Врач видит только записи, которыми вы поделились.</p></div></aside>
-    </div><span className="sr-only" role="status">{status}</span>
-  </section>;
+function MoodDiary(){
+ const {api}=useSession(),[entries,setEntries]=useState<Entry[]>([]),[doctor,setDoctor]=useState<{id:string;name:string}|null>(null),[total,setTotal]=useState(0),[more,setMore]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [mood,setMood]=useState<number|null>(null),[emotions,setEmotions]=useState<string[]>([]),[note,setNote]=useState(''),[reflections,setReflections]=useState<ReflectionAnswer[]>([]),[shared,setShared]=useState(false),[removing,setRemoving]=useState<string|null>(null);
+ const request=useRef(crypto.randomUUID()),sending=useRef(false),saveButton=useRef<HTMLButtonElement>(null);
+ async function refresh(older=false){const r=await api('journal'+(older?'?offset='+entries.length:''));setEntries(v=>older?[...v,...r.entries.filter((e:Entry)=>!v.some(x=>x.id===e.id))]:r.entries);setTotal(r.total);setMore(r.hasMore);setDoctor(r.doctorId?{id:r.doctorId,name:r.doctorName}:null);}
+ async function load(older=false){setLoading(true);setError('');try{await refresh(older)}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
+ useEffect(()=>{void load()},[]);
+ function changed(){request.current=crypto.randomUUID();setMessage('');}
+ async function save(){if(sending.current||mood===null)return;sending.current=true;setBusy(true);setError('');try{await api('journal','POST',{id:request.current,mood,emotions,note,reflections,shareWithDoctor:shared,doctorId:doctor?.id});request.current=crypto.randomUUID();setMood(null);setEmotions([]);setNote('');setReflections([]);setShared(false);setMessage('Запись сохранена. Доступ врача можно изменить в любой момент.');await refresh()}catch(e){setError((e as Error).message)}finally{sending.current=false;setBusy(false)}}
+ async function sharing(e:Entry){setBusy(true);setError('');try{await api('journal/'+e.id,'PATCH',{shared:!e.sharedWithDoctor,doctorId:doctor?.id});setEntries(v=>v.map(x=>x.id===e.id?{...x,sharedWithDoctor:!e.sharedWithDoctor}:x));setMessage(e.sharedWithDoctor?'Доступ врача к записи закрыт.':'Запись доступна лечащему врачу.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ async function remove(id:string){setBusy(true);setError('');try{await api('journal/'+id,'DELETE');setRemoving(null);await refresh()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ return <div className="diary-grid"><section className="panel diary-compose"><h2>Как вы сейчас себя чувствуете?</h2>{error&&<p className="error-banner" role="alert">{error}</p>}{message&&<p className="test-success" role="status">{message}</p>}<form onSubmit={e=>{e.preventDefault();void save()}}><div className="mood-picker" aria-label="Выберите настроение">{MOODS.map(m=><button type="button" key={m.value} disabled={busy} aria-pressed={mood===m.value} className={mood===m.value?'selected':''} onClick={()=>{setMood(m.value);changed()}}><span className="mood-emoji">{m.emoji}</span><span>{m.label}</span></button>)}</div><h3>Какие чувства вы замечаете?</h3><p className="health-note">Можно выбрать до трёх или пропустить.</p><div className="emotion-chips">{EMOTIONS.map(e=><button type="button" key={e} disabled={busy||!emotions.includes(e)&&emotions.length>=3} aria-pressed={emotions.includes(e)} className={emotions.includes(e)?'selected':''} onClick={()=>{setEmotions(v=>v.includes(e)?v.filter(x=>x!==e):[...v,e]);changed()}}>{e}</button>)}</div><ReflectionQuestions key={total} sequence={total} answers={reflections} onChange={v=>{setReflections(v);changed()}} disabled={busy} onComplete={()=>saveButton.current?.focus()}/><VoiceTextField label="Заметка о вашем дне" value={note} onChange={v=>{setNote(v);changed()}} maxLength={3000} rows={4} disabled={busy} placeholder="Что хочется сохранить…"/><label className="diary-share"><input type="checkbox" checked={shared} disabled={busy||!doctor} onChange={e=>{setShared(e.target.checked);changed()}}/><span>Показать эту запись врачу<small>{doctor?doctor.name+'. Доступ можно закрыть позже.':'Сначала подключитесь к врачу.'}</small></span></label><button ref={saveButton} className="primary" disabled={busy||loading||mood===null}><Check size={17}/>{busy?'Сохраняем…':'Сохранить запись'}</button></form></section><section className="panel diary-history"><div className="tests-heading"><h2>Мои записи</h2><button className="text-button" disabled={loading||busy} onClick={()=>void load()}><RefreshCw size={15}/>Обновить</button></div>{loading&&!entries.length?<p>Загружаем записи…</p>:!entries.length?<p className="health-note">Здесь появятся ваши записи.</p>:entries.map(e=><article className="journal-entry" key={e.id}><div className="journal-entry-title"><span className="journal-emoji">{MOODS[e.mood-1]?.emoji}</span><div><strong>{MOODS[e.mood-1]?.label}</strong><time>{when(e.createdAt)}</time></div><button className="icon-button" disabled={busy} aria-label={'Удалить запись от '+when(e.createdAt)} onClick={()=>setRemoving(e.id)}><Trash2 size={15}/></button></div><p>{e.emotions.join(' · ')}</p><ReflectionAnswers answers={e.reflections}/>{e.note&&<p className="preserve">{e.note}</p>}<p className="journal-visibility">{e.sharedWithDoctor?'Доступна врачу':'Только вам'}</p><button className="text-button" disabled={busy||!e.sharedWithDoctor&&!doctor} onClick={()=>void sharing(e)}>{e.sharedWithDoctor?'Закрыть доступ врачу':'Показать врачу'}</button>{removing===e.id&&<div className="journal-delete-confirm"><p>Удалить запись?</p><button type="button" className="text-button" disabled={busy} onClick={()=>setRemoving(null)}>Отмена</button><button type="button" className="text-button" disabled={busy} onClick={()=>void remove(e.id)}>Удалить</button></div>}</article>)}{more&&<button className="secondary" disabled={busy||loading} onClick={()=>void load(true)}>Показать ещё</button>}<p className="health-note"><LockKeyhole size={14}/>Врач видит только записи, доступ к которым вы открыли.</p></section></div>;
 }
 
 export function DoctorJournal({ patientId }: { patientId: string }) {
@@ -184,5 +36,5 @@ export function DoctorJournal({ patientId }: { patientId: string }) {
   const request = useRef(0);
   async function load() { const id = ++request.current; setLoading(true); setError(''); try { const result = await api(`patients/${patientId}/journal`); if (id === request.current) setEntries(result.entries); } catch (e) { if (id === request.current) setError((e as Error).message); } finally { if (id === request.current) setLoading(false); } }
   useEffect(() => { void load(); return () => { request.current++; }; }, [patientId]);
-  return <PatientSection className="shared-journal" title="Дневник пациента" icon={<BookHeart size={20}/>} description="Только записи, которыми пациент поделился с вами" actions={<button className="text-button" disabled={loading} onClick={load}>Обновить</button>}>{error ? <p className="form-error">{error}</p> : loading ? <p className="shared-journal-empty">Загружаем записи…</p> : !entries.length ? <p className="shared-journal-empty">Пациент пока не делился записями дневника.</p> : <div className="shared-journal-entries">{entries.map(entry => <article key={entry.id}><div><span className="journal-emoji">{MOODS[entry.mood - 1]?.emoji}</span><strong>{MOODS[entry.mood - 1]?.label} · {entry.mood}/5</strong><time>{when(entry.createdAt)}</time></div>{entry.emotions.length > 0 && <p className="shared-emotions">{entry.emotions.join(' · ')}</p>}<ReflectionAnswers answers={entry.reflections}/>{entry.note && <p className="preserve">{entry.note}</p>}</article>)}</div>}</PatientSection>;
+  return <><DoctorThoughtDiary patientId={patientId}/><PatientSection className="shared-journal" title="Дневник пациента" icon={<BookHeart size={20}/>} description="Только записи, которыми пациент поделился с вами" actions={<button className="text-button" disabled={loading} onClick={load}>Обновить</button>}>{error ? <p className="form-error">{error}</p> : loading ? <p className="shared-journal-empty">Загружаем записи…</p> : !entries.length ? <p className="shared-journal-empty">Пациент пока не делился записями дневника.</p> : <div className="shared-journal-entries">{entries.map(entry => <article key={entry.id}><div><span className="journal-emoji">{MOODS[entry.mood - 1]?.emoji}</span><strong>{MOODS[entry.mood - 1]?.label} · {entry.mood}/5</strong><time>{when(entry.createdAt)}</time></div>{entry.emotions.length > 0 && <p className="shared-emotions">{entry.emotions.join(' · ')}</p>}<ReflectionAnswers answers={entry.reflections}/>{entry.note && <p className="preserve">{entry.note}</p>}</article>)}</div>}</PatientSection></>;
 }
