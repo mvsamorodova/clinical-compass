@@ -44,3 +44,41 @@
 .patient-information-fold>summary{cursor:pointer;list-style:none;margin:0;flex-wrap:nowrap}.patient-information-fold>summary::-webkit-details-marker{display:none}.patient-information-fold>summary h2{flex:1;min-width:0}.patient-information-fold>summary>svg{flex-shrink:0}.patient-information-fold>summary:focus-visible{outline:3px solid var(--focus);outline-offset:6px;border-radius:5px}.patient-information-chevron{transition:transform .15s}.patient-information-fold[open]>summary{margin-bottom:20px}.patient-information-fold[open]>summary .patient-information-chevron{transform:rotate(180deg)}.patient-information-content>.patient-section:last-child{margin-bottom:0}@media(max-width:680px){.patient-information-fold[open]>summary{margin-bottom:15px}}
 
 .doctor-test-assignment .assignment-status-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:12px}.doctor-test-assignment .assignment-status-row>p{flex:1;min-width:180px;margin:0}.doctor-test-assignment .assignment-status-row>.assignment-actions{margin:0;width:auto;flex-shrink:0;max-width:100%}@media(max-width:680px){.doctor-test-assignment .assignment-status-row{gap:12px}.doctor-test-assignment .assignment-status-row>.assignment-actions{flex:1;min-width:0}}
+
+/* Patient diary and care plan */
+.diary-tabs{margin-bottom:24px;max-width:650px;border:1px solid var(--border,#d6e4e8);border-radius:16px;overflow:hidden;background:#fff}
+.diary-page [hidden]{display:none!important}
+.diary-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:24px;align-items:start;margin-bottom:24px}
+.diary-compose,.diary-history,.patient-assessments{padding:26px}
+.diary-compose h2,.diary-history h2{font-size:20px;margin:0 0 16px}
+.diary-compose h3{margin:20px 0 8px;font-size:16px}
+.diary-compose form{display:grid;gap:18px}
+.diary-compose .field{margin:0}
+.diary-compose .mood-picker{padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.diary-compose .mood-picker button{flex:1;min-width:80px;padding:12px 8px;border:1px solid #d6e4e8;border-radius:14px}
+.diary-compose .mood-picker button.selected{background:#e0f0ed;border-color:#267c80;box-shadow:0 0 0 1px #267c80}
+.diary-history .anchor-entries{display:grid;grid-template-columns:1fr}
+.diary-history .anchor-entry p,.journal-entry .preserve{overflow-wrap:anywhere}
+.voice-text-field>label{font-weight:600}
+.dictation>.text-button{font-size:13px;padding:5px 0}
+.dictation-panel{border:1px solid #bed8df;background:#f2f8f9;border-radius:12px;padding:16px;margin-top:8px;display:grid;gap:12px}
+.dictation-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dictation-panel .field{gap:8px}
+.dictation-panel p{margin:0}
+.dictation-panel textarea{background:#fff}
+.patient-care-plan{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start;margin-bottom:24px}
+.patient-care-plan .patient-tests-list{display:grid;grid-template-columns:1fr;gap:16px}
+.patient-care-plan .patient-test-card{padding:20px;box-shadow:none}
+.patient-care-plan .patient-test-card h2{font-size:18px}
+.patient-care-plan .tests-heading{gap:12px;align-items:flex-start;flex-wrap:wrap}
+.patient-care-plan .test-empty{box-shadow:none;border:0;padding:16px 0}
+.test-completed{display:flex;gap:8px;align-items:center;font-size:14px;color:#32685e}
+.medication-next{display:grid;gap:5px;font-size:14px;margin:16px 0}
+.medication-next small{color:#647b83}
+.medication-timing{border:1px solid #d6e4e8;border-radius:12px;padding:16px;min-width:0}
+.medication-timing legend{padding:0 6px;font-weight:600}
+.medication-timing input{min-width:0}
+@media(max-width:1000px){.diary-grid,.patient-care-plan{grid-template-columns:1fr}}
+@media(max-width:600px){.diary-compose,.diary-history,.patient-assessments{padding:18px}.diary-tabs button{font-size:13px;padding:12px 8px}.diary-compose .mood-picker button{min-width:68px}.dictation-panel .voice-actions{flex-direction:column;align-items:stretch}}
+
+.patient-care-plan > .panel{margin-top:0}
