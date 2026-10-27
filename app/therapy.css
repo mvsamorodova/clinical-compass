@@ -13,6 +13,13 @@
 .therapy-content{padding:20px}.therapy-content p{font-size:13px;line-height:1.7}
 .therapy-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.therapy-heading>p{color:var(--muted);max-width:65ch}.therapy-heading button{white-space:nowrap;flex-shrink:0}
 .therapy-status{color:var(--ocean);font-weight:500;margin:12px 0}
+.therapy-timeline{display:flex;flex-wrap:wrap;gap:10px;list-style:none;padding:0;margin:16px 0}
+.therapy-timeline li{flex:1;min-width:90px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.therapy-timeline strong{display:block;color:var(--deep);font-size:21px}.therapy-timeline strong small{font-size:12px;font-weight:400;color:var(--muted)}.therapy-timeline li>span{font-size:11px;color:var(--muted)}
+.therapy-evidence>summary{cursor:pointer;color:var(--ocean);font-size:13px}.therapy-table-scroll{overflow-x:auto;margin:14px 0}
+.therapy-evidence table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.therapy-evidence caption{text-align:left;color:var(--muted);font-size:11px;padding-bottom:10px;line-height:1.6}
+.therapy-evidence th,.therapy-evidence td{padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}.therapy-evidence th{font-weight:500}.therapy-evidence th small{display:block;color:var(--muted);font-weight:400;font-size:10px;max-width:26ch}.therapy-evidence td:last-child{white-space:nowrap}
+.therapy-evidence th:nth-child(3),.therapy-evidence td:nth-child(3){display:table-cell}
 .therapy-hold{background:#fff7eb;color:#76532f;padding:14px 16px;border-radius:10px;font-size:13px;margin:12px 0}
 .therapy-hold ul{margin:8px 0 0;padding-left:20px}.therapy-hold li{padding:3px 0}
 .therapy-suggestion{background:var(--surface-tint);border:1px solid var(--border-strong);padding:20px;border-radius:12px;margin:16px 0;color:var(--ink)}

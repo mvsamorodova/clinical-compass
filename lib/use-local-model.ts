@@ -2,12 +2,22 @@
 import { useEffect, useRef, useState } from 'react';
 import {keepModelStorage} from './model-cache';
 import modelWorkerUrl from './llm.worker.ts?worker&url';
+import {useModelCache} from './use-model-cache';
+
+function localModelCached():Promise<boolean>{
+ return new Promise(resolve=>{
+  let probe:Worker|null=null;
+  const done=(present:boolean)=>{clearTimeout(timer);probe?.terminate();resolve(present);};
+  const timer=setTimeout(()=>done(false),15000);
+  try{probe=new Worker(modelWorkerUrl,{type:'module'});probe.onmessage=e=>{if(e.data.type==='result')done(e.data.data==='cached');if(e.data.type==='error')done(false);};probe.onerror=()=>done(false);probe.postMessage({id:'cache-probe',type:'check'});}catch{done(false);}
+ });
+}
 
 type State = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error';
 type Job = { resolve(value: string): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>; onDelta?: (text: string) => void };
 export function useLocalModel() {
   const [state, setState] = useState<State>('idle');
-  const [cached,setCached]=useState<boolean|null>(null);
+  const {cached}=useModelCache(localModelCached);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const worker = useRef<Worker | null>(null);
@@ -23,9 +33,7 @@ export function useLocalModel() {
   useEffect(() => {
     active.current = true;
     if (!('gpu' in navigator)) setState('unsupported');
-    let probe:Worker|null=null;
-    try{probe=new Worker(modelWorkerUrl,{type:'module'});probe.onmessage=e=>{if(e.data.type==='result'&&active.current)setCached(e.data.data==='cached');probe?.terminate();};probe.onerror=()=>probe?.terminate();probe.postMessage({id:'cache-probe',type:'check'});}catch{setCached(false);}
-    return () => { active.current = false; probe?.terminate(); dispose(); };
+    return () => { active.current = false; dispose(); };
   }, []);
 
   function call(type: string, payload: unknown, timeout: number, onDelta?: (text: string) => void) {
@@ -48,7 +56,7 @@ export function useLocalModel() {
       worker.current = w;
       w.onmessage = event => {
         const { id, type, data } = event.data;
-        if(type==='cache-status'){if(active.current)setCached(data);return;}
+        if(type==='cache-status'){window.dispatchEvent(new Event('compass-model-cached'));return;}
         const job = jobs.current.get(id); if (!job) return;
         if (type === 'progress') { if (active.current) setProgress(data); return; }
         if (type === 'delta') { job.onDelta?.(data); return; }

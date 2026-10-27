@@ -2191,6 +2191,7 @@ export const ADDITIONAL_TESTS: AssessmentDefinition[] = [
    {
     "id": "source_version",
     "title": "Источник результата и редакция бланка",
+    "description": "Для сопоставления с градациями КР укажите «КР РФ 2024, приложение Г6». Другие редакции сохраняются как контекст без автоматического применения этих порогов.",
     "type": "text",
     "required": true
    },

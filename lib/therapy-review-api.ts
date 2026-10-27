@@ -1,6 +1,6 @@
 import {HealthError} from './health-api';
 import {digest} from './security';
-import {CHECKS,DAY,THERAPY_RULE_VERSION,ageAt,assessReview,emptyChecks,gadEvidence,type TherapyChecks,type TherapyReview} from './therapy-review';
+import {CHECKS,DAY,THERAPY_RULE_VERSION,ageAt,assessReview,emptyChecks,longitudinalEvidence,type AssessmentRow,type TherapyChecks,type TherapyReview} from './therapy-review';
 
 const fail=(status:number,message:string):never=>{throw new HealthError(status,message);};
 const json=(data:unknown)=>Response.json(data,{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -18,13 +18,13 @@ export async function therapyReviewApi(req:Request,path:string[],u:any,db:D1Data
  async function current(){
   const patient=await row('SELECT u.birth_date,p.updated_at FROM users u JOIN patient_records p ON p.patient_id=u.id WHERE p.patient_id=? AND p.doctor_id=?',patientId,u.id);
   if(!patient)fail(404,'Пациент не найден');
-  const latest=await row("SELECT r.id,r.answers,r.test_version,r.submitted_at FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE a.patient_id=? AND a.doctor_id=? AND a.test_key='gad7' ORDER BY r.submitted_at DESC,r.rowid DESC LIMIT 1",patientId,u.id);
+  const results:AssessmentRow[]=await all("SELECT r.id,r.answers,r.test_version,r.submitted_at,r.entry_mode,a.test_key FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE a.patient_id=? AND a.doctor_id=? AND a.test_key IN ('gad7','hars','bai','dass42','phq9') AND r.submitted_at>=? ORDER BY r.submitted_at DESC,r.rowid DESC",patientId,u.id,Date.now()-56*DAY);
   const latestAny=await row('SELECT r.id,r.test_version,r.submitted_at FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE a.patient_id=? AND a.doctor_id=? ORDER BY r.submitted_at DESC,r.rowid DESC LIMIT 1',patientId,u.id);
-  const evidence=gadEvidence(latest,Date.now());
+  const {evidence,measures}=longitudinalEvidence(results,Date.now());
   const meds=await all('SELECT id,revision,status,updated_at FROM medication_orders WHERE patient_id=? AND doctor_id=? ORDER BY id',patientId,u.id);
   const alerts=await all('SELECT result_id,reasons_json,reviewed_at FROM assessment_alerts WHERE patient_id=? AND doctor_id=? ORDER BY result_id',patientId,u.id);
   const unreviewedSafety=alerts.some(a=>a.reviewed_at===null&&parse(a.reasons_json,[]).some((r:any)=>r.kind==='safety'));
-  const context=await digest(JSON.stringify([THERAPY_RULE_VERSION,patientId,u.id,patient.birth_date,patient.updated_at,latest?.id,latestAny,meds,alerts]));
+  const context=await digest(JSON.stringify([THERAPY_RULE_VERSION,patientId,u.id,patient.birth_date,patient.updated_at,results,latestAny,meds,alerts]));
   const saved=await row('SELECT * FROM therapy_reviews WHERE patient_id=? AND doctor_id=?',patientId,u.id);
   const fresh=!!saved&&saved.context_hash===context&&saved.rule_version===THERAPY_RULE_VERSION&&Date.now()-saved.reviewed_at<=14*DAY;
   const stored=parse(saved?.checks_json??'',{}),checks=fresh&&validChecks(stored)?stored:emptyChecks();
@@ -33,7 +33,7 @@ export async function therapyReviewApi(req:Request,path:string[],u:any,db:D1Data
   if(!unreviewedSafety&&patient.birth_date&&age===null)decision={status:'blocked',reasons:['Проверьте дату рождения в профиле пациента.']};
   // Recheck the link after reads; an unlinked doctor must not receive a cached review.
   if(!await row('SELECT patient_id FROM patient_records WHERE patient_id=? AND doctor_id=?',patientId,u.id))fail(404,'Пациент не найден');
-  const review:TherapyReview={active:!!evidence,context,revision:saved?.revision??0,stale:!!saved&&!fresh,age,evidence,checks,history,reviewedAt:fresh?saved.reviewed_at:null,...decision};
+  const review:TherapyReview={active:!!evidence,context,revision:saved?.revision??0,stale:!!saved&&!fresh,age,evidence,measures,checks,history,reviewedAt:fresh?saved.reviewed_at:null,...decision};
   if(!evidence){review.status='needs_review';review.reasons=[];return review;}
   if(decision.status==='consider'&&fresh)review.suggestion={title:'Авиандр (маритупирдин): вариант для рассмотрения',text:'При подтверждённом ГТР и недостаточном эффекте терапии первых двух линий можно рассмотреть Авиандр как один из вариантов лечения. Проверка условий не подтверждает пригодность препарата автоматически. Выбор терапии и назначение остаются за врачом.'};
   return review;
