@@ -17,7 +17,7 @@ import { assessmentApi, AssessmentError } from '../../../lib/assessment-api';
 export const dynamic='force-dynamic';
 const DAY=86400000;
 // An alert that highlighted the safety plan remains part of the current doctor's history, even after acknowledgement.
-const observationStatus="CASE WHEN EXISTS(SELECT 1 FROM assessment_alerts a WHERE a.patient_id=r.patient_id AND a.doctor_id=r.doctor_id) THEN 'emergency' WHEN r.status='attention' THEN 'attention' ELSE 'stable' END";
+const observationStatus="CASE WHEN EXISTS(SELECT 1 FROM assessment_alerts a WHERE a.patient_id=r.patient_id AND a.doctor_id=r.doctor_id AND a.rowid>r.status_alert_cursor) OR r.status='emergency' THEN 'emergency' WHEN r.status='attention' THEN 'attention' ELSE 'stable' END";
 const db=()=>{if(!env.DB)throw new Error('Database unavailable');return env.DB;};
 const row=(sql:string,...args:any[])=>db().prepare(sql).bind(...args).first<any>();
 const run=(sql:string,...args:any[])=>db().prepare(sql).bind(...args).run();
@@ -79,11 +79,11 @@ async function handle(req:Request){
   if(u.role!=='patient')fail(403,'Чат и личный дневник доступны только пациенту');
   if(path[0]==='journal'){
    if(method==='GET'&&!path[1]){
-    const connection=await row('SELECT u.name FROM patient_records r JOIN users u ON u.id=r.doctor_id WHERE r.patient_id=?',u.id);
+    const connection=await row('SELECT u.id,u.name FROM patient_records r JOIN users u ON u.id=r.doctor_id WHERE r.patient_id=?',u.id);
     const offset=Number(url.searchParams.get('offset')||0);if(!Number.isInteger(offset)||offset<0||offset>100000)fail(400,'Некорректная страница');
     const entries=await all('SELECT * FROM mood_entries WHERE patient_id=? ORDER BY created_at DESC,id DESC LIMIT 21 OFFSET ?',u.id,offset);
     const stats=await row('SELECT COUNT(*) AS total FROM mood_entries WHERE patient_id=?',u.id);
-    return respond({entries:entries.slice(0,20).map(entryView),hasMore:entries.length>20,total:stats.total,doctorName:connection?.name||null});
+    return respond({entries:entries.slice(0,20).map(entryView),hasMore:entries.length>20,total:stats.total,doctorName:connection?.name||null,doctorId:connection?.id||null});
    }
    if(method==='POST'&&!path[1]){
     const b=await body(req),id=requestId(b.id),mood=b.mood;
@@ -93,11 +93,18 @@ async function handle(req:Request){
     if(typeof b.note!=='string'||b.note.length>3000)fail(400,'Запись должна быть не длиннее 3000 символов');
     let reflections;try{reflections=validateReflections(b.reflections);}catch(e){fail(400,(e as Error).message);}
     if(typeof b.shareWithDoctor!=='boolean')fail(400,'Укажите видимость записи');
-    let doctorId=null;if(b.shareWithDoctor){const connection=await row('SELECT doctor_id FROM patient_records WHERE patient_id=?',u.id);if(!connection)fail(409,'Для публикации записи сначала подключитесь к врачу');doctorId=connection.doctor_id;}
+    let doctorId=null;if(b.shareWithDoctor){const connection=await row('SELECT doctor_id FROM patient_records WHERE patient_id=?',u.id);if(!connection)fail(409,'Для публикации записи сначала подключитесь к врачу');if(b.doctorId!==undefined&&b.doctorId!==connection.doctor_id)fail(409,'Лечащий врач изменился. Обновите дневник');doctorId=connection.doctor_id;}
     await throttle(req,'journal',u.id,60);
-    await run('INSERT INTO mood_entries(id,patient_id,mood,emotions,note,reflections_json,shared_doctor_id,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',id,u.id,mood,JSON.stringify(b.emotions),b.note.trim(),JSON.stringify(reflections),doctorId,Date.now());
+    await run('INSERT INTO mood_entries(id,patient_id,mood,emotions,note,reflections_json,shared_doctor_id,created_at) SELECT ?,?,?,?,?,?,?,? WHERE ? IS NULL OR EXISTS(SELECT 1 FROM patient_records WHERE patient_id=? AND doctor_id=?) ON CONFLICT(id) DO NOTHING',id,u.id,mood,JSON.stringify(b.emotions),b.note.trim(),JSON.stringify(reflections),doctorId,Date.now(),doctorId,u.id,doctorId);
     const saved=await row('SELECT * FROM mood_entries WHERE id=? AND patient_id=?',id,u.id);if(!saved)fail(409,'Не удалось сохранить запись. Обновите страницу и повторите.');
     return respond({entry:entryView(saved)});
+   }
+   if(method==='PATCH'&&path.length===2){
+    const b=await body(req);if(typeof b.shared!=='boolean')fail(400,'Укажите видимость записи');
+    const connection=await row('SELECT doctor_id FROM patient_records WHERE patient_id=?',u.id);
+    if(b.shared&&(!connection||b.doctorId!==connection.doctor_id))fail(409,'Лечащий врач изменился. Обновите дневник');
+    const result=b.shared?await run('UPDATE mood_entries SET shared_doctor_id=? WHERE id=? AND patient_id=? AND EXISTS(SELECT 1 FROM patient_records WHERE patient_id=? AND doctor_id=?)',b.doctorId,path[1],u.id,u.id,b.doctorId):await run('UPDATE mood_entries SET shared_doctor_id=NULL WHERE id=? AND patient_id=?',path[1],u.id);
+    if(!result.meta.changes)fail(404,'Запись или связь с врачом не найдена');return respond({ok:true});
    }
    if(method==='DELETE'&&path[1]){const result=await run('DELETE FROM mood_entries WHERE id=? AND patient_id=?',path[1],u.id);if(!result.meta.changes)fail(404,'Запись не найдена');return respond({ok:true});}
   }
@@ -147,12 +154,15 @@ async function handle(req:Request){
  }
  if(path[0]==='patients'){
   if(u.role!=='doctor')fail(403,'Это действие доступно в аккаунте врача. Войдите как врач и повторите попытку.');
-  if(!path[1] && method==='GET')return respond({patients:(await all(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,${observationStatus} AS status,CASE WHEN r.status='attention' THEN 'attention' ELSE 'stable' END AS manualStatus,r.summary,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.doctor_id=? ORDER BY r.updated_at DESC`,u.id)).map(p=>{const {avatar_key,...data}=p;return {...data,avatarUrl:avatarUrl({id:p.id,avatar_key})};})});
-  const p=await row(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,u.social_links,${observationStatus} AS status,CASE WHEN r.status='attention' THEN 'attention' ELSE 'stable' END AS manualStatus,r.summary,r.recommendations,r.private_notes AS privateNotes,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.patient_id=? AND r.doctor_id=?`,path[1]||'',u.id);if(!p)fail(404,'Пациент не найден');
+  if(!path[1] && method==='GET')return respond({patients:(await all(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,${observationStatus} AS status,r.status AS manualStatus,r.status_alert_cursor AS statusAlertCursor,COALESCE((SELECT MAX(a.rowid) FROM assessment_alerts a WHERE a.patient_id=r.patient_id AND a.doctor_id=r.doctor_id),0) AS alertCursor,r.summary,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.doctor_id=? ORDER BY r.updated_at DESC`,u.id)).map(p=>{const {avatar_key,...data}=p;return {...data,avatarUrl:avatarUrl({id:p.id,avatar_key})};})});
+  const p=await row(`SELECT u.id,u.name,u.email,u.birth_date AS birthDate,u.phone,u.avatar_key,u.social_links,${observationStatus} AS status,r.status AS manualStatus,r.status_alert_cursor AS statusAlertCursor,COALESCE((SELECT MAX(a.rowid) FROM assessment_alerts a WHERE a.patient_id=r.patient_id AND a.doctor_id=r.doctor_id),0) AS alertCursor,r.summary,r.recommendations,r.private_notes AS privateNotes,r.updated_at AS updatedAt FROM patient_records r JOIN users u ON u.id=r.patient_id WHERE r.patient_id=? AND r.doctor_id=?`,path[1]||'',u.id);if(!p)fail(404,'Пациент не найден');
   if(path[2]==='journal'&&method==='GET'){const entries=await all('SELECT * FROM mood_entries WHERE patient_id=? AND shared_doctor_id=? ORDER BY created_at DESC,id DESC LIMIT 100',p.id,u.id);return respond({entries:entries.map(entryView)});}
   if(method==='GET'){const {avatar_key,social_links,...data}=p;return respond({patient:{...data,avatarUrl:avatarUrl({id:p.id,avatar_key}),socialLinks:readSocialLinks(social_links)}});}
-  if(method==='PATCH'){const b=await body(req);const status=b.status??p.manualStatus;if(!['stable','attention'].includes(status))fail(400,'Некорректный статус');await run('UPDATE patient_records SET status=?,summary=?,recommendations=?,private_notes=?,updated_at=? WHERE patient_id=? AND doctor_id=?',status,b.summary===undefined?p.summary:clean(b.summary,10000),b.recommendations===undefined?p.recommendations:clean(b.recommendations,10000),b.privateNotes===undefined?p.privateNotes:clean(b.privateNotes,10000),Date.now(),p.id,u.id);return respond({ok:true});}
-  if(method==='DELETE'){await db().batch([db().prepare("UPDATE medication_orders SET status='stopped',revision=revision+1,updated_at=? WHERE patient_id=? AND doctor_id=? AND status='active'").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM health_sharing WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare("UPDATE test_assignments SET status='paused',updated_at=? WHERE patient_id=? AND doctor_id=?").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM diary_plans WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE daily_diary_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('DELETE FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id)]);return respond({ok:true});}
+  if(method==='PATCH'&&path.length===2){const b=await body(req);const status=b.status??p.manualStatus;if(!['stable','attention','emergency'].includes(status))fail(400,'Некорректный статус');
+   const cursor=b.status===undefined?p.statusAlertCursor:(b.alertCursor??p.statusAlertCursor);
+   if(!Number.isSafeInteger(cursor)||cursor<0||cursor>p.alertCursor)fail(400,'Обновите карточку перед изменением статуса');
+   await run('UPDATE patient_records SET status=?,status_alert_cursor=MAX(status_alert_cursor,?),summary=?,recommendations=?,private_notes=?,updated_at=? WHERE patient_id=? AND doctor_id=?',status,cursor,b.summary===undefined?p.summary:clean(b.summary,10000),b.recommendations===undefined?p.recommendations:clean(b.recommendations,10000),b.privateNotes===undefined?p.privateNotes:clean(b.privateNotes,10000),Date.now(),p.id,u.id);return respond({ok:true});}
+  if(method==='DELETE'){await db().batch([db().prepare("UPDATE medication_orders SET status='stopped',revision=revision+1,updated_at=? WHERE patient_id=? AND doctor_id=? AND status='active'").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM health_sharing WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare("UPDATE test_assignments SET status='paused',updated_at=? WHERE patient_id=? AND doctor_id=?").bind(Date.now(),p.id,u.id),db().prepare('DELETE FROM diary_plans WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE daily_diary_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE mood_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('UPDATE recovery_entries SET shared_doctor_id=NULL WHERE patient_id=? AND shared_doctor_id=?').bind(p.id,u.id),db().prepare('DELETE FROM patient_records WHERE patient_id=? AND doctor_id=?').bind(p.id,u.id)]);return respond({ok:true});}
  }
  if(path[0]==='my-care' && method==='GET'){
   if(u.role!=='patient')fail(403,'Только для пациента');
