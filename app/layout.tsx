@@ -2,5 +2,5 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './clinical.css';
 import './v4.css';
-export const metadata: Metadata = {title:'Клинический компас v4 — пространство заботы',description:'Кабинет врача и пациента. Карточки, личные заметки и связь с лечащим врачом.',icons:{icon:'/favicon.svg'}};
+export const metadata: Metadata = {title:'Клинический компас v5 — пространство заботы',description:'Кабинет врача и пациента. Карточки, личные заметки и связь с лечащим врачом.',icons:{icon:'/favicon.svg'}};
 export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="ru"><body>{children}</body></html>}
