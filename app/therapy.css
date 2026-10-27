@@ -1,0 +1,32 @@
+/* Physician-only review; the closed card stays compact. */
+.therapy-review{margin:0 0 18px;border:1px solid var(--border-strong);border-radius:12px;background:var(--white);overflow:hidden}
+.therapy-review>summary{display:flex;align-items:center;gap:12px;list-style:none;padding:16px 20px;cursor:pointer;color:var(--ocean)}
+.therapy-review>summary::-webkit-details-marker{display:none}
+.therapy-review>summary>svg{flex-shrink:0}
+.therapy-review>summary>span:first-of-type{flex:1;min-width:0}
+.therapy-review>summary strong{display:block;font-size:14px;font-weight:600}
+.therapy-review>summary small{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.therapy-private{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.therapy-chevron{transition:transform .15s}.therapy-review[open]>summary .therapy-chevron{transform:rotate(180deg)}
+.therapy-review[open]>summary{border-bottom:1px solid var(--border);background:var(--surface-tint)}
+.therapy-review summary:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.therapy-content{padding:20px}.therapy-content p{font-size:13px;line-height:1.7}
+.therapy-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.therapy-heading>p{color:var(--muted);max-width:65ch}.therapy-heading button{white-space:nowrap;flex-shrink:0}
+.therapy-status{color:var(--ocean);font-weight:500;margin:12px 0}
+.therapy-hold{background:#fff7eb;color:#76532f;padding:14px 16px;border-radius:10px;font-size:13px;margin:12px 0}
+.therapy-hold ul{margin:8px 0 0;padding-left:20px}.therapy-hold li{padding:3px 0}
+.therapy-suggestion{background:var(--surface-tint);border:1px solid var(--border-strong);padding:20px;border-radius:12px;margin:16px 0;color:var(--ink)}
+.therapy-suggestion h3{font-size:16px;margin-bottom:10px}.therapy-suggestion small{display:block;margin-top:12px;color:var(--muted);font-size:11px;line-height:1.6}
+.therapy-checklist,.therapy-sources{border-top:1px solid var(--border);padding-top:14px;margin-top:18px}
+.therapy-checklist>summary,.therapy-sources>summary{cursor:pointer;font-size:13px;color:var(--ocean)}
+.therapy-checklist form{padding-top:18px}.therapy-check-group{border:0;margin:22px 0;padding:0;min-width:0}
+.therapy-check-group legend{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--deep)}
+.therapy-check-group>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.therapy-check{display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:9px;padding:14px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;min-width:0;color:var(--text);font-size:12px;line-height:1.6}
+.therapy-check select{padding:9px 11px;font-size:12px}.therapy-save{display:flex;align-items:center;gap:14px;margin-top:18px}.therapy-save span{color:var(--muted);font-size:12px}
+.therapy-sources p{margin:12px 0;color:var(--muted)}.therapy-sources ul{padding-left:20px;margin:12px 0;font-size:12px;line-height:1.8}.therapy-sources a{color:var(--ocean);text-underline-offset:3px}
+.therapy-unavailable{font-size:12px;color:var(--muted);padding:12px 0}
+.map-about{margin-top:16px;color:var(--muted);font-size:12px;max-width:70ch}.map-about>summary{cursor:pointer;color:var(--ocean)}.map-about p{margin-top:8px;line-height:1.7}
+.archipelago-page .map-page-heading{margin-bottom:24px}.archipelago-page .archipelago{padding-top:30px;padding-bottom:28px}
+@media(max-width:680px){.therapy-review>summary{padding:15px 14px;gap:9px;flex-wrap:wrap}.therapy-private{font-size:10px}.therapy-content{padding:16px}.therapy-check-group>div{grid-template-columns:minmax(0,1fr)}.therapy-heading{flex-wrap:wrap;gap:7px}.therapy-save{flex-wrap:wrap}.therapy-suggestion{padding:16px}.therapy-review>summary strong{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.therapy-chevron{transition:none}}

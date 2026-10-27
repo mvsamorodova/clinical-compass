@@ -1,4 +1,5 @@
 import {normalizeSocialLinks,readSocialLinks} from '../../../lib/social-links';
+import {therapyReviewApi} from '../../../lib/therapy-review-api';
 import {medicationsApi} from '../../../lib/medications-api';
 import {avatarApi,avatarImage} from '../../../lib/avatar-api';
 import {avatarUrl} from '../../../lib/avatars';
@@ -66,6 +67,7 @@ async function handle(req:Request){
   const inv=await row('SELECT * FROM invitations WHERE token=? AND expires>? AND used_by IS NULL',await digest(path[1]),Date.now());if(!inv)fail(404,'Приглашение уже использовано или срок его действия истёк');const d=await row('SELECT * FROM users WHERE id=?',inv.doctor_id);if(path.length===3&&path[2]==='avatar')return avatarImage(d,env.BUCKET);if(path.length!==2)fail(404,'Страница не найдена');const profile=doctorProfile(d);if(profile.avatarUrl)profile.avatarUrl='/api/invites/'+path[1]+'/avatar?v='+encodeURIComponent(d.avatar_key.split('/').at(-1));return respond({doctor:profile,expires:inv.expires});
  }
  const u=await current(req);
+ const therapyResponse=await therapyReviewApi(req,path,u,db());if(therapyResponse)return therapyResponse;
  const avatarResponse=await avatarApi(req,path,u,db(),env.BUCKET);if(avatarResponse)return avatarResponse;
  const voiceResponse=await voiceApi(req,path,u,db(),env.BUCKET);if(voiceResponse)return voiceResponse;
  const recoveryResponse=await recoveryApi(req,path,u,db(),env.BUCKET);if(recoveryResponse)return recoveryResponse;

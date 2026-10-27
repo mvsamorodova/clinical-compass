@@ -1,4 +1,11 @@
 import { primaryKey, sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+
+// Private clinical review: never joined into the patient's care or treatment responses.
+export const therapyReviews=sqliteTable('therapy_reviews',{
+ patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),
+ contextHash:text('context_hash').notNull(),ruleVersion:text('rule_version').notNull(),checksJson:text('checks_json').notNull(),
+ history:text('history').notNull().default(''),revision:integer('revision').notNull().default(1),reviewedAt:integer('reviewed_at').notNull(),
+},t=>[primaryKey({columns:[t.patientId,t.doctorId]})]);
 export const users = sqliteTable('users', {
  id:text('id').primaryKey(), email:text('email').notNull().unique(), password:text('password').notNull(), role:text('role').notNull(), name:text('name').notNull(), birthDate:text('birth_date').notNull().default(''), phone:text('phone').notNull().default(''), specialty:text('specialty').notNull().default(''), clinic:text('clinic').notNull().default(''), bio:text('bio').notNull().default(''), contactEmail:text('contact_email').notNull().default(''), schedule:text('schedule').notNull().default(''), demoGroup:text('demo_group'), avatarKey:text('avatar_key'), socialLinks:text('social_links').notNull().default('[]'), createdAt:integer('created_at').notNull()
 });
