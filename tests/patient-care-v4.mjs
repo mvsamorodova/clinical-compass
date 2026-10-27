@@ -1,0 +1,71 @@
+import assert from 'node:assert/strict';
+const base=process.argv[2]||'http://127.0.0.1:8787';
+assert.ok(['127.0.0.1','localhost'].includes(new URL(base).hostname),'Synthetic accounts on localhost only');
+let checks=0;const stamp=crypto.randomUUID(),password='Test-'+crypto.randomUUID();
+async function raw(path,u,method='GET',body){const res=await fetch(base+'/api/'+path,{method,headers:{Origin:base,...(u?{Cookie:u.cookie,'X-Compass-User':u.user.id}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});const data=await res.json();return {status:res.status,...data,cookie:res.headers.get('set-cookie')?.split(';')[0]};}
+async function req(path,u,method='GET',body,status=200){const r=await raw(path,u,method,body);assert.equal(r.status,status,`${method} ${path}: ${JSON.stringify(r)}`);checks++;return r;}
+const register=(role,name)=>req('auth/register',null,'POST',{name:'Synthetic '+name,email:stamp+name+'@example.test',password,role});
+const d=await register('doctor','doctor'),d2=await register('doctor','other'),p=await register('patient','patient'),p2=await register('patient','stranger');
+const connect=async(doc)=>{const i=await req('invites',doc,'POST',{});await req('invites/'+i.token,p,'POST',{})};await connect(d);const id=p.user.id;
+const card=async()=> (await req('patients/'+id,d)).patient;
+assert.equal((await card()).status,'stable');
+await req('patients/'+id,p,'PATCH',{status:'emergency'},403);
+await req('patients/'+id,d2,'PATCH',{status:'emergency'},404);
+await req('patients/'+id,d,'PATCH',{status:'emergency',alertCursor:0});assert.equal((await card()).status,'emergency');
+await req('patients/'+id,d,'PATCH',{summary:'NOTE'});assert.equal((await card()).status,'emergency');
+await req('patients/'+id,d,'PATCH',{status:'stable',alertCursor:0});assert.equal((await card()).status,'stable');
+async function complete(key){await req('patients/'+id+'/tests',d,'POST',{testKey:key,intervalDays:7});const list=await req('tests',p),a=list.assignments.find(a=>a.test.key===key),f=await req('tests/'+a.id,p);const result=await req('tests/'+a.id+'/results',p,'POST',{id:crypto.randomUUID(),version:f.definition.version,dueAt:a.nextDueAt,answers:Array(f.definition.questions.length).fill(3),extra:{}});assert.equal((await req('tests',p)).assignments.find(x=>x.id===a.id).lastCompletedAt,result.result.submittedAt);return result;}
+await complete('phq9');const first=await card();assert.equal(first.status,'emergency');assert.ok(first.alertCursor>0);
+await req('patients/'+id,d,'PATCH',{summary:'Keep automatic signal'});assert.equal((await card()).status,'emergency');
+await complete('gad7');const second=await card();assert.ok(second.alertCursor>first.alertCursor);
+await req('patients/'+id,d,'PATCH',{status:'stable',alertCursor:first.alertCursor});assert.equal((await card()).status,'emergency','New unseen alert must remain active');
+await req('patients/'+id,d,'PATCH',{status:'attention',alertCursor:second.alertCursor});assert.equal((await card()).status,'attention');
+await req('patients/'+id,d,'PATCH',{status:'stable',alertCursor:second.alertCursor+100},400);
+await req('patients/'+id,d,'PATCH',{summary:'Keep manual status'});assert.equal((await card()).status,'attention');
+const journal=crypto.randomUUID();await req('journal',p,'POST',{id:journal,mood:3,emotions:[],note:'PRIVATE_MOOD',shareWithDoctor:false,reflections:[]});
+assert.equal((await req('patients/'+id+'/journal',d)).entries.length,0);
+await req('journal/'+journal,p2,'PATCH',{shared:false},404);
+await req('journal/'+journal,d,'PATCH',{shared:true,doctorId:d.user.id},403);
+await req('journal/'+journal,p,'PATCH',{shared:true,doctorId:d2.user.id},409);
+await req('journal/'+journal,p,'PATCH',{shared:true,doctorId:d.user.id});assert.equal((await req('patients/'+id+'/journal',d)).entries[0].note,'PRIVATE_MOOD');
+await req('journal/'+journal,p,'PATCH',{shared:false});assert.equal((await req('patients/'+id+'/journal',d)).entries.length,0);
+const thought=crypto.randomUUID(),anchor=crypto.randomUUID();
+await req('recovery-map/entries',p,'POST',{id:thought,category:'thought',text:'PRIVATE_THOUGHT'});
+await req('recovery-map/entries',p,'POST',{id:anchor,category:'words',text:'PRIVATE_ANCHOR'});
+assert.equal((await req('patients/'+id+'/recovery-map',d)).thoughtEntries.length,0);
+await req('recovery-map/entries/'+thought,p2,'PATCH',{shared:true,doctorId:d.user.id},409);
+await req('recovery-map/entries/'+thought,p,'PATCH',{shared:true,doctorId:d2.user.id},409);
+await req('recovery-map/entries/'+anchor,p,'PATCH',{shared:true,doctorId:d.user.id},404);
+await req('recovery-map/entries/'+thought,p,'PATCH',{shared:true,doctorId:d.user.id});
+let shared=await req('patients/'+id+'/recovery-map',d);assert.equal(shared.thoughtEntries[0].text,'PRIVATE_THOUGHT');assert.ok(!JSON.stringify(shared).includes('PRIVATE_ANCHOR'));
+await req('recovery-map/entries/'+thought,p,'PATCH',{shared:false});assert.equal((await req('patients/'+id+'/recovery-map',d)).thoughtEntries.length,0);
+await req('patients/'+id+'/diary',d,'PUT',{blocks:['emotional']});const daily=await req('daily-diary',p),dailyId=crypto.randomUUID();
+await req('daily-diary',p,'POST',{id:dailyId,version:daily.version,revision:daily.plan.revision,day:new Date().toISOString().slice(0,10),timeZone:'UTC',answers:{1:5,2:5,3:5,4:1},shared:false,doctorId:d.user.id});
+await req('daily-diary/'+dailyId,p,'PATCH',{shared:true,doctorId:d.user.id});assert.equal((await req('patients/'+id+'/diary',d)).entries.length,1);
+await req('daily-diary/'+dailyId,p,'PATCH',{shared:false});assert.equal((await req('patients/'+id+'/diary',d)).entries.length,0);
+const path='patients/'+id+'/medications',medId=crypto.randomUUID(),order={id:medId,name:'Тестовое назначение',dose:'По назначению',frequency:'Тестовый интервал',notes:'Синтетическая запись',intervalHours:12,nextDueAt:Date.now()-10000};
+await req(path,p,'POST',order,403);await req(path,d2,'POST',order,404);
+await req(path,d,'POST',{...order,intervalHours:0},400);
+await req(path,d,'POST',order);const m=(await req('my-treatment',p)).medications.find(x=>x.id===medId);assert.equal(m.intervalHours,12);
+const intake={id:crypto.randomUUID(),revision:m.revision,dueAt:m.nextDueAt};
+await req('my-treatment/'+medId+'/intakes',p2,'POST',intake,404);
+await req('my-treatment/'+medId+'/intakes',d,'POST',intake,403);
+await req('my-treatment/'+medId+'/intakes',p,'POST',{...intake,revision:99},409);
+const parallel=await Promise.all([intake,{...intake,id:crypto.randomUUID()}].map(b=>raw('my-treatment/'+medId+'/intakes',p,'POST',b)));assert.equal(parallel.filter(r=>r.status===200).length,1);assert.ok(parallel.every(r=>[200,409].includes(r.status)));checks+=2;
+const winner=parallel.findIndex(r=>r.status===200);const winnerPayload=winner===0?intake:null;
+if(winnerPayload){const retry=await req('my-treatment/'+medId+'/intakes',p,'POST',winnerPayload);assert.equal(retry.nextDueAt,parallel[winner].nextDueAt);}
+const taken=(await req('my-treatment',p)).medications.find(x=>x.id===medId);assert.ok(taken.lastTakenAt);assert.equal(taken.nextDueAt,order.nextDueAt+12*3600000);assert.equal(taken.revision,m.revision+1);
+await req('my-treatment/'+medId+'/intakes',p,'POST',{id:crypto.randomUUID(),revision:taken.revision,dueAt:taken.nextDueAt},409);
+await req(path+'/'+medId,d,'PATCH',{revision:m.revision,notes:'Stale edit'},409);
+await req(path+'/'+medId,d,'PATCH',{revision:taken.revision,status:'stopped'});assert.equal((await req('my-treatment',p)).medications.length,0);
+await req('my-treatment/'+medId+'/intakes',p,'POST',intake,404);
+// Unstructured legacy prescriptions are never assigned an inferred interval.
+const legacy=await req(path,d,'POST',{id:crypto.randomUUID(),name:'Legacy',dose:'Text',frequency:'Text',notes:''});assert.equal(legacy.medication.nextDueAt,null);
+await req('my-treatment/'+legacy.medication.id+'/intakes',p,'POST',{id:crypto.randomUUID(),revision:1,dueAt:0},409);
+await req('journal/'+journal,p,'PATCH',{shared:true,doctorId:d.user.id});await req('recovery-map/entries/'+thought,p,'PATCH',{shared:true,doctorId:d.user.id});await req('daily-diary/'+dailyId,p,'PATCH',{shared:true,doctorId:d.user.id});
+await req('patients/'+id,d,'DELETE');assert.equal((await req('journal',p)).entries[0].sharedWithDoctor,false);assert.equal((await req('recovery-map',p)).entries.find(x=>x.id===thought).sharedWithDoctor,false);assert.equal((await req('daily-diary',p)).entries[0].sharedWithDoctor,false);
+await connect(d2);assert.equal((await req('patients/'+id+'/journal',d2)).entries.length,0);assert.equal((await req('patients/'+id+'/recovery-map',d2)).thoughtEntries.length,0);assert.equal((await req('my-treatment',p)).medications.length,0);
+// A patient can share an old daily entry with the new doctor, even without a diary plan.
+await req('daily-diary/'+dailyId,p,'PATCH',{shared:true,doctorId:d2.user.id});assert.equal((await req('patients/'+id+'/diary',d2)).entries.length,1);
+await req('patients/'+id+'/recovery-map',d,'GET',undefined,404);
+console.log(`Patient care v4: ${checks} API checks plus state assertions passed.`);
