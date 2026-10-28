@@ -28,19 +28,19 @@ async function complete(key,answers){
  return {assignment:a.id,result:r.result.id};
 }
 const gad=await complete('gad7',[2,2,2,1,1,1,1]);
-view=await req(path,d);assert.equal(view.review.evidence.score,10);assert.equal(view.review.status,'needs_review');assert.ok(!view.review.suggestion);checks+=3;
+view=await req(path,d);assert.equal(view.review.evidence.score,10);assert.equal(view.review.status,'needs_review');assert.match(view.review.suggestion.title,/Авиандр/);assert.equal(view.review.checks.adult,'yes');assert.equal(view.review.patientFacts.birthDate,'1990-01-01');checks+=5;
 async function save(answers=good,text=history){const r=(await req(path,d)).review;return (await req(path,d,'PUT',{context:r.context,revision:r.revision,checks:answers,history:text})).review;}
-let saved=await save(emptyChecks(),'');assert.equal(saved.status,'needs_review');assert.ok(!saved.suggestion);checks+=2;
+let saved=await save(emptyChecks(),'');assert.equal(saved.status,'needs_review');assert.notEqual(saved.status,'consider');checks+=2;
 saved=await save();assert.equal(saved.status,'consider');assert.match(saved.suggestion.title,/Авиандр/);checks+=2;
-for(const c of CHECKS){
+for(const c of CHECKS.filter(c=>c.key!=='adult')){
  const blocked=await save({...good,[c.key]:c.safe==='yes'?'no':'yes'});
- assert.equal(blocked.status,'blocked',c.key);assert.ok(!blocked.suggestion,c.key);checks+=2;
+ assert.equal(blocked.status,'blocked',c.key);assert.match(blocked.suggestion.title,/Авиандр/);checks+=2;
 }
-saved=await save({...good,renal:'unknown'});assert.equal(saved.status,'needs_review');assert.ok(!saved.suggestion);checks+=2;
-saved=await save(good,'');assert.equal(saved.status,'needs_review');assert.ok(!saved.suggestion);checks+=2;
-saved=await save();
+saved=await save({...good,contraindications:'unknown'});assert.equal(saved.status,'needs_review');assert.notEqual(saved.status,'consider');checks+=2;
+saved=await save(good,'');assert.equal(saved.status,'needs_review');assert.notEqual(saved.status,'consider');checks+=2;
+saved=await save({...good,adult:'no'});assert.equal(saved.checks.adult,'yes');assert.equal(saved.status,'consider');checks+=2;
 sql(`UPDATE therapy_reviews SET reviewed_at=${Date.now()-14*86400000-1} WHERE patient_id='${id}' AND doctor_id='${d.user.id}'`);
-view=await req(path,d);assert.equal(view.review.stale,true);assert.ok(!view.review.suggestion,'Expired review must not authorize a medicine');checks+=2;
+view=await req(path,d);assert.equal(view.review.stale,true);assert.notEqual(view.review.status,'consider','Expired review must not confirm readiness');checks+=2;
 saved=await save();const originalSubmittedAt=saved.evidence.submittedAt;
 sql(`UPDATE test_results SET submitted_at=${Date.now()-31*86400000} WHERE id='${gad.result}'`);
 view=await req(path,d);assert.equal(view.review.active,false);assert.ok(!view.review.suggestion,'Expired GAD result must not authorize a medicine');checks+=2;
@@ -54,19 +54,19 @@ for(const patientPath of ['my-care','my-treatment','tests','recovery-map','journ
 }
 const meds=(await req('patients/'+id+'/medications',d)).medications;assert.equal(meds.length,0,'Review must not create an order');checks++;
 await req('me',p,'PATCH',{name:p.user.name,birthDate:'2015-01-01'});
-saved=await save();assert.equal(saved.status,'blocked');assert.ok(!saved.suggestion,'A checkbox cannot override age in the profile');checks+=2;
+saved=await save();assert.equal(saved.status,'blocked');assert.notEqual(saved.status,'consider','A checkbox cannot override age in the profile');checks+=2;
 await req('me',p,'PATCH',{name:p.user.name,birthDate:'1990-01-01'});saved=await save();
-await req('me',p,'PATCH',{name:p.user.name,birthDate:'1990-02-31'});saved=await save();assert.equal(saved.status,'blocked');assert.ok(!saved.suggestion,'An invalid profile date requires correction');checks+=2;
+await req('me',p,'PATCH',{name:p.user.name,birthDate:'1990-02-31'});saved=await save();assert.equal(saved.status,'blocked');assert.notEqual(saved.status,'consider','An invalid profile date requires correction');checks+=2;
 await req('me',p,'PATCH',{name:p.user.name,birthDate:'1990-01-01'});saved=await save();
 const staleContext=saved.context,staleRevision=saved.revision;
 await req('patients/'+id+'/medications',d,'POST',{id:crypto.randomUUID(),name:'Synthetic existing treatment',dose:'Synthetic',frequency:'Synthetic',notes:''});
 await req(path,d,'PUT',{context:staleContext,revision:staleRevision,checks:good,history},409);
-view=await req(path,d);assert.equal(view.review.stale,true);assert.equal(view.review.status,'needs_review');assert.ok(!view.review.suggestion);checks+=3;
+view=await req(path,d);assert.equal(view.review.stale,true);assert.equal(view.review.status,'needs_review');assert.notEqual(view.review.status,'consider');assert.equal(view.review.patientFacts.medications[0].name,'Synthetic existing treatment');assert.equal(view.review.checks.priorLines,'unknown');checks+=5;
 saved=await save();
 await complete('phq9',Array(9).fill(3));
-saved=await save();assert.equal(saved.status,'blocked');assert.match(saved.reasons[0],/безопасности/);assert.ok(!saved.suggestion);checks+=3;
+saved=await save();assert.equal(saved.status,'blocked');assert.match(saved.reasons[0],/безопасности/);assert.notEqual(saved.status,'consider');checks+=3;
 for(const a of (await req('alerts?patientId='+id,d)).alerts.filter(a=>a.reasons.some(r=>r.kind==='safety')))await req('alerts/'+a.id,d,'PATCH',{});
-view=await req(path,d);assert.equal(view.review.status,'needs_review');assert.ok(!view.review.suggestion,'Acknowledgement alone must not authorize a medicine');checks+=2;
+view=await req(path,d);assert.equal(view.review.status,'needs_review');assert.notEqual(view.review.status,'consider','Acknowledgement alone must not confirm readiness');checks+=2;
 saved=await save({...good,safety:'no'});assert.equal(saved.status,'blocked');checks++;
 saved=await save();assert.equal(saved.status,'consider');checks++;
 // Only synthetic records owned by this run are adjusted to open a second test cycle.
