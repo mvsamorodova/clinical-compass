@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {readFile} from 'node:fs/promises';
+const require=createRequire(import.meta.url),esbuild=require(require.resolve('esbuild',{paths:[require.resolve('wrangler/package.json')]}));
+const built=await esbuild.build({entryPoints:['lib/model-assets-api.ts'],bundle:true,platform:'node',format:'esm',write:false});
+const {modelAssetsApi}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].contents).toString('base64'));
+const manifest=JSON.parse(await readFile('lib/gigaam-model-manifest.json','utf8')),chunk=manifest.chunks[0];
+const bytes=await readFile(process.argv[2]||'outputs/gigaam-model-source-backup/weights-00.bin');
+const objects=new Map(),bucket={get:async k=>{const n=objects.get(k);return n?{...n,body:new Blob([n.bytes]).stream()}:null;}};
+const path=chunk.url.replace('/api/','').split('/');
+async function call(method='GET',route=path){return modelAssetsApi(new Request('https://unit.invalid/api/'+route.join('/'),{method}),route,bucket);}
+const fails=(fn,status)=>assert.rejects(fn,e=>e.status===status);
+await fails(()=>call(),503);
+for(const method of ['PUT','POST','DELETE','PATCH'])await fails(()=>call(method),405);
+await fails(()=>call('GET',['model-assets','wrong','weights-00.bin']),404);
+await fails(()=>call('GET',['model-assets',path[1],'../../voice/private']),404);
+await fails(()=>call('GET',[...path,'extra']),404);
+assert.equal(await modelAssetsApi(new Request('https://unit.invalid/api/voice'),['voice'],bucket),null);
+const key='models/'+path.slice(1).join('/');objects.set(key,{bytes,size:bytes.length,customMetadata:{sha256:'wrong'}});
+await fails(()=>call(),503);objects.get(key).customMetadata.sha256=chunk.sha256;
+const r=await call();assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'public, max-age=31536000, immutable');assert.deepEqual(Buffer.from(await r.arrayBuffer()),bytes);
+console.log('PASS model assets: fixed file allowlist, private-key isolation, size/hash metadata, public read, all writes disabled.');

@@ -1,0 +1,1 @@
+ALTER TABLE `mood_entries` ADD `reflections_json` text DEFAULT '[]' NOT NULL;

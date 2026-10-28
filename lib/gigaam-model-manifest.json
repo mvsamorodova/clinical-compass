@@ -1,0 +1,171 @@
+{
+  "bytes": 407859480,
+  "sha256": "8fad2a2c4637799b03bd21c0f3231f66460d688e781d38bcbb14939b40fe42ec",
+  "chunks": [
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-00.bin",
+      "bytes": 12582912,
+      "sha256": "032765fb8bd0dc543786584242b6c0fab87eac9490b5bbebb946ff8bd1528b6d"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-01.bin",
+      "bytes": 12582912,
+      "sha256": "cfadd44a103cbd6d5726fa07b27d7aad2f67ed3930ff96901c486a5beaf7e723"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-02.bin",
+      "bytes": 12582912,
+      "sha256": "9c2889a4c50ca18634a1aca5c43941ff712767a0b3a936826319521ad9169584"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-03.bin",
+      "bytes": 12582912,
+      "sha256": "ffef123064c410d9a2a485cef8beb0a789b4ba24483189a30433d78e9509838a"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-04.bin",
+      "bytes": 12582912,
+      "sha256": "19aed16a54c1416a21dc55a756b10c4e2b00a0195e4f477388f062546fef4be9"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-05.bin",
+      "bytes": 12582912,
+      "sha256": "4f4997fbeb5a228d988aefc19adb62a6391d64eafa04d739f7e023bda5dd82ea"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-06.bin",
+      "bytes": 12582912,
+      "sha256": "89072bd520506e9e692c51b5575c5db798a652ea439e0358f1d99ca0d090168e"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-07.bin",
+      "bytes": 12582912,
+      "sha256": "867646c320d69d55d21fb197d343cf6be48091b8dbc83572589bdd221a99777e"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-08.bin",
+      "bytes": 12582912,
+      "sha256": "a9e520932b967fabe3be87209a4dad4f1abfffd506dde9123aeece4bb5a7c4ee"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-09.bin",
+      "bytes": 12582912,
+      "sha256": "59d84ff1230863475a088388cf8121ca346f23c66afdeb525121d79b66e82a68"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-10.bin",
+      "bytes": 12582912,
+      "sha256": "462a3d044cfb2e2bbe1ac0dc8b426f936a5ada0cef690596670b6745f03b0308"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-11.bin",
+      "bytes": 12582912,
+      "sha256": "ac69a0dc8de2a813016e317acde18ba8b9915bca7d9e8f34e8d00295eccece4e"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-12.bin",
+      "bytes": 12582912,
+      "sha256": "a8e971f3d75ab2d71c265e0e0cbafdd2c387faa35267be5b0814ffb8bb449a41"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-13.bin",
+      "bytes": 12582912,
+      "sha256": "d84c028d42dc226a3b572317ebc8b77d538160b39c3ce6cdd6567c57a61e5bf2"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-14.bin",
+      "bytes": 12582912,
+      "sha256": "33ea866cbd87537f598783f31e840a18c595c1da9ddbd923e8277dab72b7a033"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-15.bin",
+      "bytes": 12582912,
+      "sha256": "085cfb10033a8fc8000cb2e7d03571934bdafcb5a6e6bcd9fb00fb46ad01268d"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-16.bin",
+      "bytes": 12582912,
+      "sha256": "5651e28849ec55c0d5cfa908d93b57943fc5db209f9a12257a21a2d224f5f65f"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-17.bin",
+      "bytes": 12582912,
+      "sha256": "bcc1e041d888087e132ad0dd88d59f0fb549b61878c65b221b3baa321ae913a5"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-18.bin",
+      "bytes": 12582912,
+      "sha256": "fe8b55c9f7fcdaba8830b9ec95344ccc23a34981d8ae3685eeff4cd7c33b0c5f"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-19.bin",
+      "bytes": 12582912,
+      "sha256": "d33210cd94e76e945a2339cdc41fefef6f9b46958035346215141e3b0f5d1fad"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-20.bin",
+      "bytes": 12582912,
+      "sha256": "4a560a7546f150216806611e77c51183da9bef04e43f182570107f327c51ec22"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-21.bin",
+      "bytes": 12582912,
+      "sha256": "ed8f6166fe1b20f8e4a334a16106e92ee0bccb21f7365a718071513199f1a63d"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-22.bin",
+      "bytes": 12582912,
+      "sha256": "eba5dce853f5140ec87ccd07f3b03f685fbef23fe8018e9f462035a2850ab58b"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-23.bin",
+      "bytes": 12582912,
+      "sha256": "7bcdd9f749c3fbaa4f4e61c6f4aee317c7f67dca628d3a3f4df1aa164ba15a9d"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-24.bin",
+      "bytes": 12582912,
+      "sha256": "853cf963e623dbf42c5bc608cb72dcf5f3ff3ae69f85b13bb27633b2f23bbb9e"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-25.bin",
+      "bytes": 12582912,
+      "sha256": "c942fa6d7779409775bad76174767328abf2b7fd8d1470fb87976b2e3d4cbe58"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-26.bin",
+      "bytes": 12582912,
+      "sha256": "e50d2b7a607501e92e9202ca07936dad6e704e2fa5a896cb7b726ec134ed445e"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-27.bin",
+      "bytes": 12582912,
+      "sha256": "4a20e4205e459690ef1c0b8e8b4104ff5c2873b2c8ad6901b87755c2e9cd82cc"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-28.bin",
+      "bytes": 12582912,
+      "sha256": "bb5f9abad2ad29dabead028c7259993992d58cd2275f05d2049c34eace69a61d"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-29.bin",
+      "bytes": 12582912,
+      "sha256": "0dd82cbd1c4066cd41ab6dd00a53c025eaee260a7ff81d23d83ddb4dfe60cc76"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-30.bin",
+      "bytes": 12582912,
+      "sha256": "fe00daaa15a7092144daee39becf5b5665d7ac64e7f08f5ace775fdcb2142aa7"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-31.bin",
+      "bytes": 12582912,
+      "sha256": "6b1ec4d084e54c0fbb2784ffc6b4438d3a06524b8009768417df4497994f5395"
+    },
+    {
+      "url": "/api/model-assets/gigaam-emo-8fad2a2c/weights-32.bin",
+      "bytes": 5206296,
+      "sha256": "703c9f2e98c20a770263b40317aa1353125a743c05defd3acbacd7fd3e7d9692"
+    }
+  ]
+}

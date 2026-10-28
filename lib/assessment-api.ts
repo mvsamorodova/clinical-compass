@@ -1,3 +1,4 @@
+import {assessmentRisk} from './assessment-risk';
 import { CATALOGUE, validAnswers, validateFields, scoreAssessment, type AssessmentDefinition } from './assessments';
 
 export class AssessmentError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -6,7 +7,7 @@ const json = (data: unknown) => Response.json(data, {headers: {'Cache-Control':'
 const definition = (key: string) => CATALOGUE.find(t => t.key === key);
 const metadata = (t: AssessmentDefinition, forDoctor=false) => ({key:t.key,version:t.version,name:t.name,shortName:t.shortName,description:t.description,recallLabel:t.recallLabel,variantLabel:t.variantLabel,questionCount:t.externalCount??t.questions.length,respondent:t.respondent??'patient',...(forDoctor?{doctorDescription:t.doctorDescription,scoreDefinitions:t.scoreDefinitions,scoringNote:t.scoringNote,keyNotes:t.keyNotes,sources:t.sources}:{})});
 const form = (t:AssessmentDefinition,doctor=false)=>({...metadata(t,doctor),instruction:t.instruction,questions:t.questions,options:t.options,itemOptions:t.itemOptions,fields:t.fields,safetyItems:t.safetyItems});
-const assignmentView = (a: any, forDoctor=false) => ({id:a.id,test:metadata(definition(a.test_key)!,forDoctor),status:a.status,nextDueAt:a.next_due_at,createdAt:a.created_at,intervalDays:a.interval_days});
+const assignmentView = (a: any, forDoctor=false) => ({id:a.id,test:metadata(definition(a.test_key)!,forDoctor),status:a.status,nextDueAt:a.next_due_at,lastCompletedAt:a.last_completed_at??null,createdAt:a.created_at,intervalDays:a.interval_days});
 const DAY=86400000;
 function interval(value:unknown){if(!Number.isInteger(value)||Number(value)<1||Number(value)>365)fail(400,'Интервал должен быть целым числом от 1 до 365 дней');return Number(value);}
 const receipt = (r: any) => ({id:r.id,assignmentId:r.assignment_id,submittedAt:r.submitted_at,nextDueAt:r.submitted_at+r.interval_days*DAY,intervalDays:r.interval_days});
@@ -20,6 +21,7 @@ async function saveResult(req:Request,a:any,u:any,db:D1Database){
  let extra:Record<string,string|number>={};try{extra=validateFields(test,b.extra??{});}catch(e){fail(400,(e as Error).message);}
  const scores=scoreAssessment(test,b.answers);
  if(test.respondent==='external')for(const s of test.scoreDefinitions){if(typeof extra[s.key]==='number')scores[s.key]=extra[s.key] as number;}
+ const riskReasons=assessmentRisk(test.key,test.version,scores,b.answers,extra);
  const answers=JSON.stringify(test.fields?.length?{answers:b.answers,extra}:b.answers);
  const row=(sql:string,...args:any[])=>db.prepare(sql).bind(...args).first<any>();
  const existing=await row('SELECT * FROM test_results WHERE id=? AND assignment_id=?',b.id,a.id);
@@ -32,14 +34,23 @@ async function saveResult(req:Request,a:any,u:any,db:D1Database){
    SELECT ?,a.id,a.next_due_at,?,a.test_version,?,?,?,?,?,a.interval_days,?,? FROM test_assignments a JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id
    WHERE a.id=? AND a.patient_id=? AND a.doctor_id=? AND a.status='active' AND a.next_due_at=? AND a.next_due_at<=? ON CONFLICT DO NOTHING`)
    .bind(b.id,now,answers,scores.depression??0,scores.anxiety??0,scores.stress??0,JSON.stringify(scores),u.id,test.respondent??'patient',a.id,a.patient_id,a.doctor_id,b.dueAt,now),
-  db.prepare(`UPDATE test_assignments SET next_due_at=(SELECT submitted_at+interval_days*86400000 FROM test_results WHERE id=?),updated_at=? WHERE id=? AND next_due_at=? AND EXISTS(SELECT 1 FROM test_results WHERE id=? AND assignment_id=test_assignments.id AND cycle_due_at=?)`).bind(b.id,now,a.id,b.dueAt,b.id,b.dueAt)
+  db.prepare(`UPDATE test_assignments SET next_due_at=(SELECT submitted_at+interval_days*86400000 FROM test_results WHERE id=?),updated_at=? WHERE id=? AND next_due_at=? AND EXISTS(SELECT 1 FROM test_results WHERE id=? AND assignment_id=test_assignments.id AND cycle_due_at=?)`).bind(b.id,now,a.id,b.dueAt,b.id,b.dueAt),
+  ...(riskReasons.length?[db.prepare(`INSERT INTO assessment_alerts(result_id,patient_id,doctor_id,reasons_json,created_at) SELECT r.id,a.patient_id,a.doctor_id,?,? FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE r.id=? AND a.id=? AND r.answers=? AND r.cycle_due_at=? ON CONFLICT(result_id) DO NOTHING`).bind(JSON.stringify(riskReasons),now,b.id,a.id,answers,b.dueAt)]:[])
  ]);
  const saved=await row('SELECT * FROM test_results WHERE id=? AND assignment_id=?',b.id,a.id);
  if(!saved)fail(409,'Назначение изменилось или ответы уже отправлены. Обновите список тестов.');
+ if(saved.answers!==answers||saved.cycle_due_at!==b.dueAt)fail(409,'Эта отправка уже сохранена с другими ответами');
  return json({result:receipt(saved)});
 }
 
 export async function assessmentApi(req: Request, path: string[], u: any, db: D1Database): Promise<Response | null> {
+ if(path[0]==='assessment-preview'){
+  if(u.role!=='doctor')fail(403,'Предпросмотр теста доступен врачу');
+  if(req.method!=='GET')fail(405,'Предпросмотр не сохраняет ответы');
+  if(path.length!==2)fail(404,'Тест не найден');
+  const test=definition(path[1]);if(!test)fail(404,'Тест не найден');
+  return json({definition:form(test,true)});
+ }
  const patientRoute=path[0]==='tests', doctorRoute=path[0]==='patients'&&path[2]==='tests';
  if(!patientRoute&&!doctorRoute)return null;
  const row=(sql:string,...args:any[])=>db.prepare(sql).bind(...args).first<any>();
@@ -60,7 +71,7 @@ export async function assessmentApi(req: Request, path: string[], u: any, db: D1
    return saveResult(req,a,u,db);
   }
   if(method==='GET'&&path.length===3){
-   const assignments=await all('SELECT * FROM test_assignments WHERE patient_id=? AND doctor_id=? ORDER BY created_at DESC',patientId,u.id);
+   const assignments=await all('SELECT a.*,(SELECT MAX(r.submitted_at) FROM test_results r WHERE r.assignment_id=a.id) AS last_completed_at FROM test_assignments a WHERE patient_id=? AND doctor_id=? ORDER BY created_at DESC',patientId,u.id);
    const results=await all('SELECT r.* FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id WHERE a.patient_id=? AND a.doctor_id=? ORDER BY r.submitted_at DESC LIMIT 100',patientId,u.id);
    return json({catalogue:CATALOGUE.map(t=>metadata(t,true)),assignments:assignments.map(a=>assignmentView(a,true)),results:results.map(r=>({...receipt(r),version:r.test_version,entryMode:r.entry_mode,scores:r.scores_json?JSON.parse(r.scores_json):{depression:r.depression,anxiety:r.anxiety,stress:r.stress}}))});
   }
@@ -93,7 +104,7 @@ export async function assessmentApi(req: Request, path: string[], u: any, db: D1
  if(u.role!=='patient')fail(403,'Прохождение тестов доступно только пациенту');
  const linked=`FROM test_assignments a JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id WHERE a.patient_id=?`;
  if(method==='GET'&&path.length===1){
-  const assignments=await all(`SELECT a.* ${linked} ORDER BY a.created_at DESC`,u.id);
+  const assignments=await all(`SELECT a.*,(SELECT MAX(r.submitted_at) FROM test_results r WHERE r.assignment_id=a.id) AS last_completed_at ${linked} ORDER BY a.created_at DESC`,u.id);
   // Patients receive completion receipts, never computed scores or automated interpretation.
   const results=await all(`SELECT r.id,r.assignment_id,r.submitted_at,r.interval_days FROM test_results r JOIN test_assignments a ON a.id=r.assignment_id JOIN patient_records p ON p.patient_id=a.patient_id AND p.doctor_id=a.doctor_id WHERE a.patient_id=? ORDER BY r.submitted_at DESC LIMIT 100`,u.id);
   const self=assignments.filter(a=>!definition(a.test_key)?.respondent||definition(a.test_key)?.respondent==='patient');

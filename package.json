@@ -8,8 +8,8 @@
   },
   "packageManager": "pnpm@11.25.0",
   "scripts": {
-    "dev": "node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
-    "build": "node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build",
+    "dev": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
+    "build": "node scripts/prepare-speech-runtime.mjs && node --import ./scripts/runtime.mjs ./node_modules/vinext/dist/cli.js build && node scripts/prune-browser-assets.mjs",
     "preview": "node --import ./scripts/runtime.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 8787 --inspector-port 0",
     "check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
@@ -18,14 +18,17 @@
     "deploy": "node --import ./scripts/runtime.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config dist/server/wrangler.json",
     "test:api": "node tests/integration.mjs",
     "test:chat": "node tests/patient-chat.mjs",
-    "test:assessments": "node tests/assessments.mjs"
+    "test:assessments": "node tests/assessments.mjs",
+    "test:recovery": "node tests/recovery-map.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@mlc-ai/web-llm": "0.2.86",
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
     "lucide-react": "^1.31.0",
     "next": "16.3.4",
+    "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",
     "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -42,6 +45,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
+    "onnxruntime-common": "1.22.0-dev.20250409-89f8206ba4",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",

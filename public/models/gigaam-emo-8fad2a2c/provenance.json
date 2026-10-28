@@ -1,0 +1,30 @@
+{
+  "source_repository": "https://github.com/salute-developers/GigaAM",
+  "source_commit": "7447938d791c4f3e643386ee22c33777004293a5",
+  "source_checkpoint_url": "https://cdn.chatwm.opensmodel.sberdevices.ru/GigaAM/emo.ckpt",
+  "source_checkpoint_md5": "7ce76f9535cb254488985057c0d33006",
+  "quantization": {
+    "method": "onnxruntime.quantization.quantize_dynamic",
+    "op_types_to_quantize": [
+      "MatMul",
+      "Gemm"
+    ],
+    "weight_type": "QInt8",
+    "per_channel": false,
+    "reduce_range": false,
+    "extra_options": {
+      "MatMulConstBOnly": true
+    }
+  },
+  "files": {
+    "emo.onnx": {
+      "bytes": 1030319207,
+      "sha256": "41a39521c17045ec8010254d7ee6f2a03de922c826e0c3218f15df29ab742711"
+    },
+    "emo-matmul-int8.onnx": {
+      "bytes": 407859480,
+      "sha256": "8fad2a2c4637799b03bd21c0f3231f66460d688e781d38bcbb14939b40fe42ec"
+    }
+  },
+  "license": "MIT; Copyright (c) 2024 GigaChat Team"
+}

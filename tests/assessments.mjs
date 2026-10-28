@@ -18,6 +18,17 @@ await link(d,p);
 const root='patients/'+p.user.id+'/tests';
 await req('tests',{expect:401});await req('tests',{cookie:d.cookie,expect:403});await req(root,{cookie:p.cookie,expect:403});await req(root,{cookie:other.cookie,expect:404});
 const initial=await req(root,{cookie:d.cookie});assert.equal(initial.catalogue[0].key,'dass42');assert.equal(initial.assignments.length,0);
+await req('assessment-preview/dass42',{expect:401});
+await req('assessment-preview/dass42',{cookie:p.cookie,expect:403});
+await req('assessment-preview/missing',{cookie:d.cookie,expect:404});
+await req('assessment-preview/dass42',{method:'POST',body:{answers:Array(42).fill(0)},cookie:d.cookie,expect:405});
+for(const t of initial.catalogue){
+ const preview=await req('assessment-preview/'+t.key,{cookie:d.cookie});
+ assert.equal(preview.definition.key,t.key);assert.equal(preview.definition.version,t.version);
+ assert.ok(preview.definition.questions.length||preview.definition.fields?.length);
+ assert.ok(!preview.assignment&&!preview.result);assert.ok(!JSON.stringify(preview).includes('patientId'));
+}
+const afterPreview=await req(root,{cookie:d.cookie});assert.deepEqual(afterPreview.assignments,initial.assignments);assert.deepEqual(afterPreview.results,initial.results);
 await req(root,{method:'POST',body:{testKey:'unknown'},cookie:d.cookie,expect:400});await req(root,{method:'POST',body:null,cookie:d.cookie,expect:400});
 const a=(await req(root,{method:'POST',body:{testKey:'dass42'},cookie:d.cookie})).assignment;
 const again=(await req(root,{method:'POST',body:{testKey:'dass42'},cookie:d.cookie})).assignment;assert.equal(again.id,a.id);assert.equal(again.nextDueAt,a.nextDueAt);

@@ -1,0 +1,55 @@
+{
+  "official_repository": "https://github.com/salute-developers/GigaAM",
+  "official_commit": "7447938d791c4f3e643386ee22c33777004293a5",
+  "checkpoint_url": "https://cdn.chatwm.opensmodel.sberdevices.ru/GigaAM/emo.ckpt",
+  "checkpoint_md5": "7ce76f9535cb254488985057c0d33006",
+  "checkpoint_bytes": 484350758,
+  "model": "emo",
+  "dtype": "float32",
+  "device": "cpu",
+  "torch": "2.8.0",
+  "labels": [
+    "angry",
+    "sad",
+    "neutral",
+    "positive"
+  ],
+  "audio_frames": 64774,
+  "audio_hz": 16000,
+  "audio_seconds": 4.048375,
+  "reference_probabilities": {
+    "angry": 0.00013788152136839926,
+    "sad": 0.0002027912123594433,
+    "neutral": 0.9673941135406494,
+    "positive": 0.032265156507492065
+  },
+  "js_frontend_probabilities": {
+    "angry": 0.00013788140495307744,
+    "sad": 0.00020279086311347783,
+    "neutral": 0.9673943519592285,
+    "positive": 0.032264962792396545
+  },
+  "official_frontend_max_abs_error": 0.0006570816040039062,
+  "official_frontend_mean_abs_error": 4.98247845825972e-06,
+  "frontend_probability_max_abs_difference": 2.384185791015625e-07,
+  "parameter_count": 242024452,
+  "load_seconds": 1.0039207935333252,
+  "inference_seconds": 0.29351019859313965,
+  "js_feature_inference_seconds": 0.3015730381011963,
+  "preprocessing_parity": {
+    "torch": "2.8.0",
+    "torchaudio": "2.8.0",
+    "frames": 64774,
+    "shape": [
+      1,
+      64,
+      405
+    ],
+    "max_abs_error": 0.0006122589111328125,
+    "mean_abs_error": 4.987929514754796e-06,
+    "rms_abs_error": 1.6484549632878043e-05,
+    "p99_abs_error": 7.22985714673996e-05,
+    "within_1e-4": 0.9955246913580247,
+    "within_1e-3": 1.0
+  }
+}

@@ -50,6 +50,76 @@
       "when": 1792668422182,
       "tag": "0006_good_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792926928134,
+      "tag": "0007_mood_reflections",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792927175451,
+      "tag": "0008_safety_and_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792929497780,
+      "tag": "0009_familiar_morlocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792943325094,
+      "tag": "0010_blue_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792948737433,
+      "tag": "0011_windy_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792949185389,
+      "tag": "0012_normalize_observation_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792950729375,
+      "tag": "0013_ancient_boom_boom",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793049425951,
+      "tag": "0014_recovery_archipelago",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1793114019376,
+      "tag": "0015_diary_access_and_care_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1793118405767,
+      "tag": "0016_doctor_therapy_review",
+      "breakpoints": true
     }
   ]
 }

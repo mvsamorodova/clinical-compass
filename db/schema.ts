@@ -1,18 +1,25 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { primaryKey, sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+
+// Private clinical review: never joined into the patient's care or treatment responses.
+export const therapyReviews=sqliteTable('therapy_reviews',{
+ patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),
+ contextHash:text('context_hash').notNull(),ruleVersion:text('rule_version').notNull(),checksJson:text('checks_json').notNull(),
+ history:text('history').notNull().default(''),revision:integer('revision').notNull().default(1),reviewedAt:integer('reviewed_at').notNull(),
+},t=>[primaryKey({columns:[t.patientId,t.doctorId]})]);
 export const users = sqliteTable('users', {
- id:text('id').primaryKey(), email:text('email').notNull().unique(), password:text('password').notNull(), role:text('role').notNull(), name:text('name').notNull(), birthDate:text('birth_date').notNull().default(''), phone:text('phone').notNull().default(''), specialty:text('specialty').notNull().default(''), clinic:text('clinic').notNull().default(''), bio:text('bio').notNull().default(''), contactEmail:text('contact_email').notNull().default(''), schedule:text('schedule').notNull().default(''), demoGroup:text('demo_group'), createdAt:integer('created_at').notNull()
+ id:text('id').primaryKey(), email:text('email').notNull().unique(), password:text('password').notNull(), role:text('role').notNull(), name:text('name').notNull(), birthDate:text('birth_date').notNull().default(''), phone:text('phone').notNull().default(''), specialty:text('specialty').notNull().default(''), clinic:text('clinic').notNull().default(''), bio:text('bio').notNull().default(''), contactEmail:text('contact_email').notNull().default(''), schedule:text('schedule').notNull().default(''), demoGroup:text('demo_group'), avatarKey:text('avatar_key'), socialLinks:text('social_links').notNull().default('[]'), createdAt:integer('created_at').notNull()
 });
 export const sessions = sqliteTable('sessions', {token:text('token').primaryKey(), userId:text('user_id').notNull().references(()=>users.id), expires:integer('expires').notNull()});
-export const patientRecords = sqliteTable('patient_records', {patientId:text('patient_id').primaryKey().references(()=>users.id), doctorId:text('doctor_id').notNull().references(()=>users.id), status:text('status').notNull().default('stable'), summary:text('summary').notNull().default(''), recommendations:text('recommendations').notNull().default(''), privateNotes:text('private_notes').notNull().default(''), updatedAt:integer('updated_at').notNull()},t=>[index('records_by_doctor').on(t.doctorId)]);
+export const patientRecords = sqliteTable('patient_records', {patientId:text('patient_id').primaryKey().references(()=>users.id), doctorId:text('doctor_id').notNull().references(()=>users.id), status:text('status').notNull().default('stable'), statusAlertCursor:integer('status_alert_cursor').notNull().default(0), summary:text('summary').notNull().default(''), recommendations:text('recommendations').notNull().default(''), privateNotes:text('private_notes').notNull().default(''), updatedAt:integer('updated_at').notNull()},t=>[index('records_by_doctor').on(t.doctorId)]);
 export const invitations = sqliteTable('invitations', {token:text('token').primaryKey(), doctorId:text('doctor_id').notNull().references(()=>users.id), expires:integer('expires').notNull(), usedBy:text('used_by'), createdAt:integer('created_at').notNull()});
 export const loginAttempts = sqliteTable('login_attempts', {key:text('key').primaryKey(), count:integer('count').notNull(), resetAt:integer('reset_at').notNull()});
 
 // Patient-owned records. Sharing is tied to an explicitly selected current doctor.
 export const moodEntries = sqliteTable('mood_entries', {
- id:text('id').primaryKey(), patientId:text('patient_id').notNull().references(()=>users.id), mood:integer('mood').notNull(), emotions:text('emotions').notNull().default('[]'), note:text('note').notNull().default(''), sharedDoctorId:text('shared_doctor_id').references(()=>users.id), createdAt:integer('created_at').notNull()
+ id:text('id').primaryKey(), patientId:text('patient_id').notNull().references(()=>users.id), mood:integer('mood').notNull(), emotions:text('emotions').notNull().default('[]'), note:text('note').notNull().default(''), reflectionsJson:text('reflections_json').notNull().default('[]'), sharedDoctorId:text('shared_doctor_id').references(()=>users.id), createdAt:integer('created_at').notNull()
 },t=>[index('mood_by_patient').on(t.patientId,t.createdAt),index('mood_by_doctor').on(t.sharedDoctorId)]);
 export const chatTurns = sqliteTable('chat_turns', {
- id:integer('id').primaryKey({autoIncrement:true}), requestId:text('request_id').notNull().unique(), patientId:text('patient_id').notNull().references(()=>users.id), message:text('message').notNull(), reply:text('reply').notNull(), kind:text('kind').notNull().default('llm'), createdAt:integer('created_at').notNull()
+ id:integer('id').primaryKey({autoIncrement:true}), requestId:text('request_id').notNull().unique(), patientId:text('patient_id').notNull().references(()=>users.id), message:text('message').notNull(), voiceId:text('voice_id').references(()=>voiceNotes.id), reply:text('reply').notNull(), kind:text('kind').notNull().default('llm'), createdAt:integer('created_at').notNull()
 },t=>[index('chat_by_patient').on(t.patientId,t.id)]);
 
 export const testAssignments = sqliteTable('test_assignments', {
@@ -34,3 +41,23 @@ export const dailyDiaryEntries=sqliteTable('daily_diary_entries',{id:text('id').
 export const healthSyncRequests = sqliteTable('health_sync_requests', {
  id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),tokenHash:text('token_hash').notNull().unique(),createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),receivedAt:integer('received_at'),previewJson:text('preview_json')
 },t=>[index('health_sync_by_patient').on(t.patientId)]);
+
+// One patient plan: the API supports insert/read only, never update or delete.
+export const safetyPlans=sqliteTable('safety_plans',{patientId:text('patient_id').primaryKey().references(()=>users.id),requestId:text('request_id').notNull(),dataJson:text('data_json').notNull(),createdAt:integer('created_at').notNull()});
+export const assessmentAlerts=sqliteTable('assessment_alerts',{resultId:text('result_id').primaryKey().references(()=>testResults.id),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),reasonsJson:text('reasons_json').notNull(),createdAt:integer('created_at').notNull(),reviewedAt:integer('reviewed_at'),reviewedBy:text('reviewed_by').references(()=>users.id)},t=>[index('alerts_by_doctor').on(t.doctorId,t.reviewedAt)]);
+export const mapProgress=sqliteTable('map_progress',{patientId:text('patient_id').notNull().references(()=>users.id),nodeKey:text('node_key').notNull(),status:text('status').notNull(),answer:text('answer').notNull().default(''),updatedAt:integer('updated_at').notNull()},t=>[uniqueIndex('map_node_per_patient').on(t.patientId,t.nodeKey)]);
+export const mapPreferences=sqliteTable('map_preferences',{patientId:text('patient_id').primaryKey().references(()=>users.id),branch:text('branch').notNull()});
+
+// Audio is private in R2; every read is authorized against its owner/current sharing link.
+export const voiceNotes=sqliteTable('voice_notes',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),objectKey:text('object_key').notNull(),sha256:text('sha256').notNull(),durationMs:integer('duration_ms').notNull(),createdAt:integer('created_at').notNull(),sharedDoctorId:text('shared_doctor_id').references(()=>users.id),sharedAt:integer('shared_at')},t=>[index('voice_by_patient').on(t.patientId,t.createdAt)]);
+export const voiceEmotions=sqliteTable('voice_emotions',{voiceId:text('voice_id').primaryKey().references(()=>voiceNotes.id),doctorId:text('doctor_id').notNull().references(()=>users.id),modelVersion:text('model_version').notNull(),scoresJson:text('scores_json').notNull(),segments:integer('segments').notNull(),createdAt:integer('created_at').notNull()});
+
+// The doctor sets the regimen; the patient records each scheduled intake.
+export const medicationOrders=sqliteTable('medication_orders',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),name:text('name').notNull(),dose:text('dose').notNull(),frequency:text('frequency').notNull(),intervalHours:integer('interval_hours'),nextDueAt:integer('next_due_at'),lastTakenAt:integer('last_taken_at'),notes:text('notes').notNull().default(''),status:text('status').notNull().default('active'),revision:integer('revision').notNull().default(1),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull()},t=>[index('medications_by_patient_doctor').on(t.patientId,t.doctorId,t.status)]);
+
+// Only explicitly shared thought entries are exposed to the current doctor.
+export const recoveryEntries=sqliteTable('recovery_entries',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),category:text('category').notNull(),text:text('text').notNull().default(''),mediaKey:text('media_key'),mediaType:text('media_type'),sharedDoctorId:text('shared_doctor_id').references(()=>users.id),createdAt:integer('created_at').notNull()},t=>[index('recovery_entries_by_patient').on(t.patientId,t.createdAt)]);
+export const recoveryActivity=sqliteTable('recovery_activity',{patientId:text('patient_id').notNull().references(()=>users.id),kind:text('kind').notNull(),itemKey:text('item_key').notNull(),createdAt:integer('created_at').notNull()},t=>[primaryKey({columns:[t.patientId,t.kind,t.itemKey]})]);
+export const recoveryMessages=sqliteTable('recovery_messages',{id:text('id').primaryKey(),patientId:text('patient_id').notNull().references(()=>users.id),doctorId:text('doctor_id').notNull().references(()=>users.id),sender:text('sender').notNull(),text:text('text').notNull(),createdAt:integer('created_at').notNull(),readAt:integer('read_at')},t=>[index('recovery_messages_by_connection').on(t.patientId,t.doctorId,t.createdAt)]);
+
+export const medicationIntakes=sqliteTable('medication_intakes',{id:text('id').primaryKey(),medicationId:text('medication_id').notNull().references(()=>medicationOrders.id),patientId:text('patient_id').notNull().references(()=>users.id),orderRevision:integer('order_revision').notNull(),dueAt:integer('due_at').notNull(),takenAt:integer('taken_at').notNull(),nextDueAt:integer('next_due_at').notNull()},t=>[uniqueIndex('medication_intake_per_cycle').on(t.medicationId,t.orderRevision,t.dueAt)]);

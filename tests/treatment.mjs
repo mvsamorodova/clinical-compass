@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+const base=process.argv[2]||'http://127.0.0.1:5173';
+assert.ok(['127.0.0.1','localhost'].includes(new URL(base).hostname));
+const stamp=crypto.randomUUID(),password='Test-'+crypto.randomUUID();let checks=0;
+async function req(path,u,method='GET',body,expect=200,extra={}){
+ const r=await fetch(base+'/api/'+path,{method,headers:{Origin:base,...(u?{Cookie:u.cookie,'X-Compass-User':u.user.id}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{}),...extra},body:body===undefined?undefined:JSON.stringify(body)});
+ const raw=await r.text();let data;try{data=JSON.parse(raw);}catch{data={error:raw};}assert.equal(r.status,expect,`${method} ${path}: ${JSON.stringify(data)}`);if(r.headers.get('content-type')?.includes('application/json'))assert.equal(r.headers.get('cache-control'),'no-store');checks++;
+ return {...data,cookie:r.headers.getSetCookie().find(c=>c.startsWith('compass_session='))?.split(';')[0]};
+}
+const register=(role,name)=>req('auth/register',null,'POST',{role,name:'Synthetic '+name,email:stamp+name+'@example.test',password});
+const d=await register('doctor','doctor'),other=await register('doctor','other'),p=await register('patient','patient'),stranger=await register('patient','stranger');
+const link=async(doctor,patient)=>{const i=await req('invites',doctor,'POST',{});await req('invites/'+i.token,patient,'POST',{});};await link(d,p);
+const root='patients/'+p.user.id+'/medications';
+await req(root,null,'GET',undefined,401);await req(root,p,'GET',undefined,403);await req(root,other,'GET',undefined,404);await req('my-treatment',d,'GET',undefined,403);
+assert.deepEqual((await req(root,d)).medications,[]);assert.deepEqual((await req('my-treatment',p)).medications,[]);
+const order={id:crypto.randomUUID(),name:'Синтетическое назначение',dose:'Тестовая доза',frequency:'Тестовая периодичность',notes:'TEST_NOTE_'+stamp};
+for(const body of [null,[],{}, {...order,name:''},{...order,dose:''},{...order,frequency:''},{...order,name:'x'.repeat(121)},{...order,notes:5},{...order,id:'bad'}])await req(root,d,'POST',body,400);
+await req(root,d,'POST',{...order,notes:'x'.repeat(6001)},413);await req(root,d,'POST',order,403,{Origin:'https://foreign.invalid'});await req(root,d,'POST',order,409,{'X-Compass-User':other.user.id});await req(root,p,'POST',order,403);
+const first=(await req(root,d,'POST',order)).medication;assert.equal(first.revision,1);assert.equal(first.status,'active');assert.equal(first.name,order.name);assert.ok(!JSON.stringify(first).match(/doctorId|patientId|doctor_id|patient_id/));
+assert.deepEqual((await req(root,d,'POST',order)).medication,first);await req(root,d,'POST',{...order,dose:'changed'},409);
+assert.equal((await req('my-treatment',p)).medications[0].dose,order.dose);assert.equal((await req('my-treatment',stranger)).medications.length,0);
+await req('my-treatment',p,'PATCH',{},405);await req(root+'/'+order.id,p,'PATCH',{revision:1,dose:'bad'},403);await req(root+'/'+order.id,other,'PATCH',{revision:1,dose:'bad'},404);
+for(const body of [{dose:'x'},{revision:0,dose:'x'},{revision:1,status:'active'},{revision:1},{revision:1,dose:''}])await req(root+'/'+order.id,d,'PATCH',body,400);
+const updated=(await req(root+'/'+order.id,d,'PATCH',{revision:1,dose:'Изменённая тестовая доза'})).medication;assert.equal(updated.revision,2);assert.equal((await req('my-treatment',p)).medications[0].dose,updated.dose);
+await req(root+'/'+order.id,d,'PATCH',{revision:1,frequency:'stale'},409);
+const race=await Promise.all(['A','B'].map(notes=>fetch(base+'/api/'+root+'/'+order.id,{method:'PATCH',headers:{Cookie:d.cookie,Origin:base,'Content-Type':'application/json'},body:JSON.stringify({revision:2,notes})})));
+assert.deepEqual(race.map(r=>r.status).sort(),[200,409]);checks++;
+const current=(await req(root,d)).medications[0];assert.equal(current.revision,3);await req(root+'/'+order.id,d,'PATCH',{revision:3,status:'stopped'});assert.deepEqual((await req('my-treatment',p)).medications,[]);await req(root+'/'+order.id,d,'PATCH',{revision:4,dose:'restart'},409);
+await req(root+'/missing',d,'DELETE',undefined,405);await req('patients/'+p.user.id,d);
+const second={...order,id:crypto.randomUUID()};await req(root,d,'POST',second);
+// Emergency derives from the exact persisted alerts that highlight the safety plan. It is never a manual status.
+assert.equal((await req('patients/'+p.user.id,d)).patient.status,'stable');
+await req('patients/'+p.user.id,d,'PATCH',{status:'emergency'},400);await req('patients/'+p.user.id,d,'PATCH',{status:'followup'},400);
+const assignment=(await req('patients/'+p.user.id+'/tests',d,'POST',{testKey:'phq9'})).assignment;
+const definition=(await req('tests/'+assignment.id,p)).definition;
+const result={id:crypto.randomUUID(),version:definition.version,dueAt:assignment.nextDueAt,answers:[0,0,0,0,0,0,0,0,1]};
+await req('tests/'+assignment.id+'/results',p,'POST',result);
+assert.equal((await req('patients/'+p.user.id,d)).patient.status,'emergency');assert.equal((await req('patients',d)).patients[0].status,'emergency');assert.equal((await req('safety-plan',p)).signalCount,1);
+const response=await req('patients/'+p.user.id+'/tests/results/'+result.id,d);assert.deepEqual(response.response,result.answers);assert.equal(response.definition.key,'phq9');
+await req('patients/'+p.user.id+'/tests/results/'+result.id,p,'GET',undefined,403);await req('patients/'+p.user.id+'/tests/results/'+result.id,other,'GET',undefined,404);
+await req('alerts/'+result.id,d,'PATCH',{});assert.equal((await req('safety-plan',p)).signalCount,0);assert.equal((await req('patients/'+p.user.id,d)).patient.status,'emergency');
+await req('patients/'+p.user.id,d,'PATCH',{status:'stable',summary:'Saved without clearing automatic status'});assert.equal((await req('patients/'+p.user.id,d)).patient.status,'emergency');
+await req('patients/'+p.user.id,d,'DELETE');await req(root,d,'GET',undefined,404);assert.deepEqual((await req('my-treatment',p)).medications,[]);
+await link(other,p);assert.deepEqual((await req(root,other)).medications,[]);assert.equal((await req('patients/'+p.user.id,other)).patient.status,'stable');await req(root,other,'POST',{...second,id:crypto.randomUUID()});await req('patients/'+p.user.id,other,'DELETE');
+await link(d,p);const restored=await req(root,d);assert.equal(restored.medications.length,2);assert.ok(restored.medications.every(m=>m.status==='stopped'));assert.deepEqual((await req('my-treatment',p)).medications,[]);assert.equal((await req('patients/'+p.user.id,d)).patient.status,'emergency');
+console.log(`PASS ${checks} checks: medication permissions, validation, idempotency, concurrent revision edits, patient view, unlink/reconnect; automatic emergency status and saved assessment answers.`);

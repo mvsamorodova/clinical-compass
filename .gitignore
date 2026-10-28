@@ -19,3 +19,7 @@ next-env.d.ts
 .DS_Store
 coverage/
 outputs/
+
+public/speech-runtime/
+
+public/models/**/weights-*.bin

@@ -1,11 +1,12 @@
 'use client';
+import type {SocialLink} from './social-links';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 export type User = {
   id: string; name: string; email: string; role: 'doctor' | 'patient'; birthDate: string;
   phone: string; specialty: string; clinic: string; bio: string; contactEmail: string;
-  schedule: string; isDemo: boolean;
+  schedule: string; isDemo: boolean; socialLinks?:SocialLink[]; avatarUrl?: string | null;
 };
 const SESSION_EVENT = 'compass-session-changed';
 const CHANGED_MESSAGE = 'Аккаунт изменился в другой вкладке. Кабинет обновлён.';
@@ -15,13 +16,14 @@ class ApiError extends Error {
 }
 
 async function request(path: string, method = 'GET', data?: unknown, userId?: string) {
+  const binary=typeof Blob!=='undefined' && data instanceof Blob;
   const response = await fetch('/api/' + path, {
     method, credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(20000),
     headers: {
-      ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(data === undefined ? {} : { 'Content-Type': binary ? data.type : 'application/json' }),
       ...(userId ? { 'X-Compass-User': userId } : {}),
     },
-    body: data === undefined ? undefined : JSON.stringify(data),
+    body: data === undefined ? undefined : binary ? data : JSON.stringify(data),
   });
   const result: any = await response.json();
   if (!response.ok) throw new ApiError(response.status, result.error || 'Не удалось выполнить действие. Попробуйте ещё раз.', result.code);
@@ -111,6 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const result = await request(path, method, data, expectedId);
       if (current.current?.id !== expectedId) throw new ApiError(409, CHANGED_MESSAGE, 'SESSION_CHANGED');
+      if(method!=='GET')window.dispatchEvent(new Event('compass-data-changed'));
       return result;
     } catch (error) {
       if (error instanceof ApiError && (error.code === 'SESSION_CHANGED' || error.status === 401 || error.status === 403)) {

@@ -1,0 +1,217 @@
+{
+  "reference": "/private/tmp/gigaam-reference/reference.json",
+  "runtime": "1.23.2",
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "threads": 4,
+  "models": {
+    "emo.onnx": {
+      "bytes": 1030319207,
+      "sha256": "41a39521c17045ec8010254d7ee6f2a03de922c826e0c3218f15df29ab742711",
+      "ops": {
+        "Constant": 1062,
+        "Slice": 70,
+        "Shape": 146,
+        "Expand": 8,
+        "Add": 250,
+        "ConstantOfShape": 22,
+        "Mul": 101,
+        "Equal": 5,
+        "Where": 56,
+        "Unsqueeze": 237,
+        "Concat": 136,
+        "Reshape": 148,
+        "ScatterND": 2,
+        "Transpose": 148,
+        "Gather": 119,
+        "Cast": 97,
+        "Range": 4,
+        "GreaterOrEqual": 3,
+        "Conv": 50,
+        "Div": 19,
+        "Floor": 3,
+        "Relu": 2,
+        "MatMul": 193,
+        "Sub": 2,
+        "Less": 1,
+        "Tile": 1,
+        "And": 1,
+        "Not": 2,
+        "LayerNormalization": 80,
+        "Sigmoid": 64,
+        "Pad": 16,
+        "Squeeze": 16,
+        "Softmax": 17,
+        "Split": 16,
+        "ReduceMean": 1,
+        "Gemm": 1
+      },
+      "inputs": [
+        {
+          "name": "features",
+          "type": "tensor(float)",
+          "shape": [
+            "batch_size",
+            64,
+            "seq_len"
+          ]
+        },
+        {
+          "name": "feature_lengths",
+          "type": "tensor(int64)",
+          "shape": [
+            "batch_size"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "probs",
+          "type": "tensor(float)",
+          "shape": [
+            "batch_size",
+            4
+          ]
+        }
+      ],
+      "load_seconds": 1.0305678844451904,
+      "inference": {
+        "official-mel": {
+          "probabilities": {
+            "angry": 0.00013788150681648403,
+            "sad": 0.0002027912123594433,
+            "neutral": 0.9673941135406494,
+            "positive": 0.03226521238684654
+          },
+          "seconds": 0.18509292602539062,
+          "reference_max_abs_difference": 5.587935447692871e-08
+        },
+        "js-mel": {
+          "probabilities": {
+            "angry": 0.00013788127398584038,
+            "sad": 0.00020279086311347783,
+            "neutral": 0.9673943519592285,
+            "positive": 0.032264985144138336
+          },
+          "seconds": 0.1839771270751953,
+          "reference_max_abs_difference": 2.384185791015625e-07
+        }
+      }
+    },
+    "emo-matmul-int8.onnx": {
+      "bytes": 407859480,
+      "sha256": "8fad2a2c4637799b03bd21c0f3231f66460d688e781d38bcbb14939b40fe42ec",
+      "ops": {
+        "Constant": 1062,
+        "Cast": 243,
+        "Transpose": 148,
+        "Slice": 70,
+        "Unsqueeze": 237,
+        "ConstantOfShape": 22,
+        "Add": 251,
+        "Shape": 146,
+        "Concat": 136,
+        "Div": 19,
+        "Expand": 8,
+        "Reshape": 148,
+        "Gather": 119,
+        "Floor": 3,
+        "Range": 4,
+        "Mul": 393,
+        "Equal": 5,
+        "GreaterOrEqual": 3,
+        "Where": 56,
+        "ScatterND": 2,
+        "Conv": 50,
+        "Relu": 2,
+        "DynamicQuantizeLinear": 114,
+        "MatMulInteger": 146,
+        "LayerNormalization": 80,
+        "Sub": 2,
+        "Less": 1,
+        "Not": 2,
+        "Sigmoid": 64,
+        "Tile": 1,
+        "And": 1,
+        "MatMul": 48,
+        "Pad": 16,
+        "Squeeze": 16,
+        "Softmax": 17,
+        "Split": 16,
+        "ReduceMean": 1
+      },
+      "inputs": [
+        {
+          "name": "features",
+          "type": "tensor(float)",
+          "shape": [
+            "batch_size",
+            64,
+            "seq_len"
+          ]
+        },
+        {
+          "name": "feature_lengths",
+          "type": "tensor(int64)",
+          "shape": [
+            "batch_size"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "probs",
+          "type": "tensor(float)",
+          "shape": [
+            "batch_size",
+            4
+          ]
+        }
+      ],
+      "load_seconds": 0.542823076248169,
+      "inference": {
+        "official-mel": {
+          "probabilities": {
+            "angry": 0.0001443995424779132,
+            "sad": 0.0002210473030572757,
+            "neutral": 0.9602751135826111,
+            "positive": 0.03935951367020607
+          },
+          "seconds": 0.10806417465209961,
+          "reference_max_abs_difference": 0.00711899995803833
+        },
+        "js-mel": {
+          "probabilities": {
+            "angry": 0.0001469174458179623,
+            "sad": 0.00022025725047569722,
+            "neutral": 0.9596347808837891,
+            "positive": 0.03999803587794304
+          },
+          "seconds": 0.10949420928955078,
+          "reference_max_abs_difference": 0.0077593326568603516
+        }
+      },
+      "synthetic_shape_performance": [
+        {
+          "seconds_of_audio_shape": 10,
+          "mel_frames": 1001,
+          "native_inference_seconds": 0.2755930423736572,
+          "process_peak_rss_bytes": 3148611584
+        },
+        {
+          "seconds_of_audio_shape": 30,
+          "mel_frames": 3001,
+          "native_inference_seconds": 1.0308310985565186,
+          "process_peak_rss_bytes": 3148611584
+        },
+        {
+          "seconds_of_audio_shape": 60,
+          "mel_frames": 6001,
+          "native_inference_seconds": 2.675673007965088,
+          "process_peak_rss_bytes": 3341205504
+        }
+      ]
+    }
+  }
+}
