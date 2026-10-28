@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
-import {CHECKS,DAY,emptyChecks,ageAt,gadEvidence,assessReview} from '../lib/therapy-review.ts';
+import {CHECKS,DAY,emptyChecks,ageAt,gadEvidence,assessReview,withPatientFacts} from '../lib/therapy-review.ts';
 let checks=0;const eq=(a,b)=>{assert.deepEqual(a,b);checks++};
 const now=Date.UTC(2026,9,27),good=Object.fromEntries(CHECKS.map(c=>[c.key,c.safe]));
+eq(CHECKS.length,5);
+const fromProfile=withPatientFacts(emptyChecks(),32,'1994-01-01',false);
+eq(fromProfile.adult,'yes');eq(fromProfile.indication,'unknown');eq(fromProfile.priorLines,'unknown');eq(fromProfile.contraindications,'unknown');eq(fromProfile.safety,'unknown');
+eq(withPatientFacts(good,17,'2009-01-01',false).adult,'no');
+eq(withPatientFacts(good,null,'invalid',false).adult,'unknown');
+eq(withPatientFacts(emptyChecks(),null,'',false).adult,'unknown');
+eq(withPatientFacts(good,null,'',false).adult,'yes');
+eq(withPatientFacts(good,32,'1994-01-01',true).safety,'no');
+eq(assessReview(withPatientFacts(good,17,'2009-01-01',false),'history',17,false).status,'blocked');
+eq(assessReview(withPatientFacts(good,32,'1994-01-01',true),'history',32,true).status,'blocked');
 const result=(answers,overrides={})=>({id:'synthetic',test_version:'ru-zolotareva-2023',answers:JSON.stringify(answers),submitted_at:now,...overrides});
 eq(gadEvidence(null,now),null);eq(gadEvidence(result([1,1,1,1,1,2,2]),now),null);
 eq(gadEvidence(result([2,2,2,1,1,1,1]),now)?.score,10);

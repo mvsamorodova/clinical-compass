@@ -1,21 +1,12 @@
 // Product review rules, not a diagnostic or prescribing algorithm.
-export const THERAPY_RULE_VERSION = 'anxiety-review-2026-10-v2';
+export const THERAPY_RULE_VERSION = 'anxiety-review-2026-10-v3';
 export const DAY = 86400000;
 export const CHECKS = [
- {key:'adult',label:'Возраст 18 лет и старше подтверждён',safe:'yes',group:'clinical'},
- {key:'gtr',label:'Диагноз ГТР подтверждён клинически',safe:'yes',group:'clinical'},
- {key:'impairment',label:'Сохраняющееся влияние тревоги на повседневную жизнь подтверждено',safe:'yes',group:'clinical'},
- {key:'priorLines',label:'Подтверждён недостаточный эффект терапии первых двух линий',safe:'yes',group:'clinical'},
- {key:'differential',label:'Другие причины тревоги, включая манию / гипоманию, оценены; препятствий для рассмотрения нет',safe:'yes',group:'clinical'},
- {key:'allergy',label:'Гиперчувствительность к компонентам',safe:'no',group:'contra'},
- {key:'neurological',label:'Эпилепсия или органическое заболевание головного мозга',safe:'no',group:'contra'},
- {key:'renal',label:'Почечная недостаточность со СКФ <60 мл/мин',safe:'no',group:'contra'},
- {key:'hepatic',label:'Печёночная недостаточность (класс A, B или C по Чайлд-Пью)',safe:'no',group:'contra'},
- {key:'pregnancy',label:'Беременность или грудное вскармливание',safe:'no',group:'contra'},
- {key:'maoi',label:'Приём ингибиторов МАО сейчас или в предыдущие 14 дней',safe:'no',group:'contra'},
- {key:'lactose',label:'Непереносимость галактозы, дефицит лактазы или глюкозо-галактозная мальабсорбция',safe:'no',group:'contra'},
- {key:'interactions',label:'Все текущие препараты, взаимодействия и меры предосторожности проверены',safe:'yes',group:'safety'},
- {key:'safety',label:'Текущая безопасность оценена; неотложная помощь не требуется',safe:'yes',group:'safety'},
+ {key:'adult',label:'Возраст — 18 лет и старше',safe:'yes',description:'Возраст рассчитывается по дате рождения. Если её нет, подтвердите возраст по анамнезу.'},
+ {key:'indication',label:'Клинические основания подтверждены',safe:'yes',description:'Подтверждён ГТР, тревога продолжает мешать повседневной жизни. Другие причины, включая манию и гипоманию, оценены; препятствий для рассмотрения нет.'},
+ {key:'priorLines',label:'Первые две линии терапии дали недостаточный эффект',safe:'yes',description:'Оцените схемы, длительность, эффект, переносимость и приверженность. Наличие назначений само по себе не подтверждает недостаточный эффект.'},
+ {key:'contraindications',label:'Противопоказания и ограничения проверены — препятствий нет',safe:'yes',description:'Гиперчувствительность; эпилепсия и органические заболевания мозга; СКФ <60 мл/мин; печёночная недостаточность A–C; беременность и лактация; ингибиторы МАО сейчас или за 14 дней; непереносимость галактозы, дефицит лактазы и глюкозо-галактозная мальабсорбция.'},
+ {key:'safety',label:'Безопасность и лекарственные взаимодействия проверены',safe:'yes',description:'Неотложная помощь не требуется. Проверены текущие препараты, серотонинергические и седативные средства, ингибиторы CYP2D6 и остальные меры предосторожности по инструкции.'},
 ] as const;
 export type CheckKey = typeof CHECKS[number]['key'];
 export type Answer = 'unknown'|'yes'|'no';
@@ -25,8 +16,13 @@ export type AssessmentRow = {id:string;test_key:string;test_version:string;answe
 export type EvidencePoint = {id:string;score:number;submittedAt:number};
 export type ReviewMeasure = EvidencePoint & {testKey:string;label:string;max:number;usable:boolean};
 export type ReviewEvidence = ReviewMeasure & {trigger:'single'|'persistent';points:EvidencePoint[];spanDays:number};
+export type TherapyPatientFacts = {
+ birthDate:string;summary:string;unreviewedSafety:boolean;
+ medications:{id:string;name:string;dose:string;frequency:string;status:string;createdAt:number}[];
+};
 export type TherapyReview = {
  active:boolean;context:string;revision:number;stale:boolean;age:number|null;
+ patientFacts:TherapyPatientFacts;
  evidence:ReviewEvidence|null;measures:ReviewMeasure[];checks:TherapyChecks;history:string;reviewedAt:number|null;
  status:'needs_review'|'blocked'|'consider';reasons:string[];
  suggestion?:{title:string;text:string};
@@ -119,11 +115,16 @@ export function ageAt(birthDate:string,now:number):number|null{
  if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==birthDate||d.getTime()>now)return null;
  return today.getUTCFullYear()-d.getUTCFullYear()-(today.toISOString().slice(5,10)<birthDate.slice(5)?1:0);
 }
+// Only authoritative facts can prefill a clinical answer. Missing records never
+// establish a diagnosis, adequate prior treatment, safety or no contraindications.
+export function withPatientFacts(checks:TherapyChecks,age:number|null,birthDate:string,unreviewedSafety:boolean):TherapyChecks{
+ return {...checks,adult:birthDate?(age===null?'unknown':age>=18?'yes':'no'):checks.adult,safety:unreviewedSafety?'no':checks.safety};
+}
 export function assessReview(checks:TherapyChecks,history:string,age:number|null,unreviewedSafety:boolean):{status:TherapyReview['status'];reasons:string[]}{
  if(unreviewedSafety)return {status:'blocked',reasons:['Сначала просмотрите сигнал безопасности и оцените текущее состояние пациента.']};
  if(age!==null&&age<18)return {status:'blocked',reasons:['Возраст по профилю меньше 18 лет.']};
  const obstacles=CHECKS.filter(c=>checks[c.key]!=='unknown'&&checks[c.key]!==c.safe);
- if(obstacles.length)return {status:'blocked',reasons:obstacles.map(c=>(c.safe==='no'?'Отмечено: ':'Не подтверждено: ')+c.label)};
+ if(obstacles.length)return {status:'blocked',reasons:obstacles.map(c=>'Не подтверждено: '+c.label)};
  const missing:string[]=CHECKS.filter(c=>checks[c.key]==='unknown').map(c=>c.label);
  if(!history.trim())missing.push('История предшествующей терапии');
  return missing.length?{status:'needs_review',reasons:missing}:{status:'consider',reasons:[]};

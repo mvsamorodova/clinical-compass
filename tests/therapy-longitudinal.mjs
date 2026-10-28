@@ -38,7 +38,7 @@ for(const [key,mild] of [['gad7',5],['hars',8],['bai',10],['dass42',8]]){
   sql(`INSERT INTO test_results(id,assignment_id,cycle_due_at,submitted_at,test_version,answers,depression,anxiety,stress,scores_json,interval_days,recorded_by,entry_mode) SELECT ${quote(resultId)},assignment_id,${at},${at},test_version,${quote(encoded)},depression,anxiety,stress,scores_json,interval_days,recorded_by,entry_mode FROM test_results WHERE id=${quote(saved.result.id)} AND assignment_id=${quote(a.id)}`);
  }
  let review=(await req(path,doctor)).review;
- eq(review.active,true);eq(review.evidence.testKey,key);eq(review.evidence.trigger,'persistent');eq(review.evidence.points.length,3);eq(review.status,'needs_review');eq(!!review.suggestion,false);
+ eq(review.active,true);eq(review.evidence.testKey,key);eq(review.evidence.trigger,'persistent');eq(review.evidence.points.length,3);eq(review.status,'needs_review');eq(!!review.suggestion,true);eq(review.checks.adult,'yes');
  review=(await req(path,doctor,'PUT',{context:review.context,revision:review.revision,checks:good,history})).review;
  eq(review.status,'consider');assert.match(review.suggestion.title,/Авиандр/);count++;
  eq((await req('patients/'+id+'/medications',doctor)).medications.length,0);
